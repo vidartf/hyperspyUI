@@ -447,12 +447,19 @@ class MainWindowLayer5(MainWindowLayer4):
         for i, f in enumerate(filenames):
             filenames[i] = glob_escape.sub(r'[\1]', f)    # glob escapes
 
+        times = []
+        for f in filenames:
+            s = hyperspy.io.load(f)
+            p = self.plugins['Timed stack maker']
+            times.extend(p.get_times(s))
+
         sig = hyperspy.io.load(filenames, stack=True, stack_axis=stack_axis)
         if isinstance(sig, list):
             for s in sig:
                 s.plot()
         else:
             sig.plot()
+        return times
 
     def load(self, filenames=None):
         """
