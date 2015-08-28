@@ -458,6 +458,12 @@ class MainWindowLayer5(MainWindowLayer4):
             for s in sig:
                 s.plot()
         else:
+            indices = []
+            for i, d in enumerate(sig._iterate_signal()):
+                if np.all(0.0 == d):
+                    indices.append(i)
+            sig.data = np.delete(sig.data, indices, axis=stack_axis)
+            sig.get_dimensions_from_data()
             sig.plot()
         return times
 
