@@ -14,7 +14,7 @@ from hyperspy.roi import BaseInteractiveROI, RectangularROI, SpanROI, \
     Point1DROI, Point2DROI
 
 from hyperspyui.tools import SignalFigureTool
-from hyperspyui.util import load_cursor
+from hyperspyui.util import crosshair_cursor
 
 
 class SelectionTool(SignalFigureTool):
@@ -89,8 +89,7 @@ class SelectionTool(SignalFigureTool):
         return self.icon
 
     def make_cursor(self):
-        return load_cursor(os.path.dirname(__file__) +
-                           '/../images/picker.svg', 8, 8)
+        return crosshair_cursor()
 
     def is_selectable(self):
         return True
@@ -168,6 +167,9 @@ class SelectionTool(SignalFigureTool):
                     roi = RectangularROI(0, 0, 1, 1)
                 else:
                     roi = Point2DROI(0, 0)
+            else:
+                raise RuntimeWarning("No figure could be found.")
+                return
             roi._on_widget_change(self.widget)  # ROI gets coords from widget
             self.accepted[BaseInteractiveROI].emit(roi)
             self.accepted[BaseInteractiveROI, SignalFigureTool].emit(roi, self)
