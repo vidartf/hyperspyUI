@@ -16,10 +16,10 @@ ETSConfig.toolkit = 'qt4'
 
 from mainwindowlayer4 import MainWindowLayer4, tr
 
-import hooksignal
-hooksignal.hook_signal()
 import uiprogressbar
 uiprogressbar.takeover_progressbar()    # Enable hooks
+import hooksignal
+hooksignal.hook_signal()
 
 from python_qt_binding import QtGui, QtCore
 from QtCore import *
@@ -609,20 +609,25 @@ class MainWindowLayer5(MainWindowLayer4):
     cancel_progressbar = Signal(int)
 
     def on_progressbar_wanted(self, pid, maxval, label):
-        progressbar = QProgressDialog(self)
-        progressbar.setMinimumDuration(2000)
-        progressbar.setMinimum(0)
+        if pid in self.progressbars:
+            progressbar = self.progressbars[pid]
+            progressbar.setValue(0)
+        else:
+            progressbar = QProgressDialog(self)
+            progressbar.setMinimumDuration(2000)
+            progressbar.setMinimum(0)
         progressbar.setMaximum(maxval)
         progressbar.setWindowTitle("Processing")
         progressbar.setLabelText(label)
 
-        def cancel():
-            self.cancel_progressbar.emit(pid)
+        if pid not in self.progressbars:
+            def cancel():
+                self.cancel_progressbar.emit(pid)
 
-        progressbar.canceled.connect(cancel)
-        progressbar.setWindowModality(Qt.WindowModal)
+            progressbar.canceled.connect(cancel)
+            progressbar.setWindowModality(Qt.WindowModal)
 
-        self.progressbars[pid] = progressbar
+            self.progressbars[pid] = progressbar
 
     def on_progressbar_update(self, pid, value, txt=None):
         if pid not in self.progressbars:

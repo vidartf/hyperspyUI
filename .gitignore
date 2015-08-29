@@ -105,5 +105,12 @@ $RECYCLE.BIN/
 *.msp
 *.spyderproject
 
+# Python Tools for Microsoft Visual Studio
+*.suo
+*.pyproj
+*.sln
+*.pyperf
+
+
 MANIFEST
 HyperSpyUI-Bundle.exe
