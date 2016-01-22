@@ -25,6 +25,7 @@ from QtGui import *
 from hyperspyui.widgets.extendedqwidgets import ExToolWindow
 
 import os
+import re
 from collections import OrderedDict
 import imp
 from functools import partial
@@ -32,6 +33,10 @@ from StringIO import StringIO, _complain_ifclosed
 
 
 def check_git_repo(package_name):
+    """
+    Try to determine if the package "package_name" is installed as a source
+    install from a git folder.
+    """
     pkg_path = imp.find_module(package_name)[1]
     while pkg_path:
         if os.path.exists(pkg_path + os.path.sep + '.git'):
@@ -43,7 +48,12 @@ def check_git_repo(package_name):
 
 
 def get_github_branches(repo_url):
-    import re
+    """
+    Return a list of branches for the github repo at given URL.
+
+    The branches are returned in the form of an ordered dictionary, with branch
+    names as keys, and source zip URL as value.
+    """
     import urllib2
     branch_url = repo_url + '/branches/all'
     html = urllib2.urlopen(branch_url).read()
@@ -56,6 +66,10 @@ try:
     import git
 
     def check_git_cmd(prompt=True, parent=None):
+        """
+        Check if we have git.exe. If not prompt for its location (if `prompt`
+        is True).
+        """
         try:
             git.Git().status()
             return True
@@ -74,6 +88,11 @@ try:
             return False
 
     def get_git_branches(package_name, fetch=False):
+        """
+        Get both local and remote branches for the local git repo of
+        `package_name`. Ensure that the package has a local repo by calling
+        `check_git_repo` first.
+        """
         pkg_path = imp.find_module(package_name)[1]
         r = git.Repo(pkg_path, search_parent_directories=True)
         # Start with active branch:
@@ -106,6 +125,9 @@ except ImportError:
 
 
 def get_branches(package_name, url):
+    """
+    Either get git branches, or fetch branches from github.com
+    """
     if use_git and check_git_repo(package_name):
         return get_git_branches(package_name)
     else:
@@ -113,6 +135,11 @@ def get_branches(package_name, url):
 
 
 def checkout_branch(branch, stream=None):
+    """
+    If `branch` is a string, assume it is archive url. Try to install by pip.
+    Otherwise `branch` is assumed by a branch object from the `git` package,
+    which will be attempted to be checked out.
+    """
     if branch is None:
         return
     if isinstance(branch, basestring):
@@ -124,7 +151,7 @@ def checkout_branch(branch, stream=None):
         pip.download.DownloadProgressBar.file = stream
         pip.download.DownloadProgressSpinner.file = stream
         try:
-            ic.main(['-U', branch])
+            ic.main(['-U', '--no-compile', branch])
         finally:
             (pip.download.DownloadProgressBar.file,
              pip.download.DownloadProgressSpinner.file) = old_files
@@ -147,6 +174,12 @@ class GitSelector(Plugin):
 
     def __init__(self, main_window):
         super(GitSelector, self).__init__(main_window)
+        self.settings.set_default('check_for_git_updates', False)
+        self.packages = {
+            'HyperSpy': [True, ['https://github.com/hyperspy/hyperspy',
+                                'https://github.com/vidartf/hyperspy']],
+            'HyperSpyUI': [True, ['https://github.com/vidartf/hyperspyui']],
+            }
         if got_git:
             git.Git.GIT_PYTHON_GIT_EXECUTABLE = \
                     self.settings['git_executable'] or ''
@@ -155,15 +188,84 @@ class GitSelector(Plugin):
         self.add_action(
             self.name + '.show_dialog', self.name, self.show_dialog,
             tip="Open dialog to select branch/version of HyperSpy/HyperSpyUI",)
+        self.add_action(
+            self.name + '.update_check', "Check for updates",
+            self.update_check,
+            tip="Check for new versions of HyperSpy/HyperSpyUI",)
+
+    def _check_git(self):
+        for package_name in self.packages.iterkeys():
+            if check_git_repo(package_name.lower()):
+                git_ok = use_git
+                if git_ok:
+                    git_ok = check_git_cmd(True, self.ui)
+                    self.settings['git_executable'] = \
+                        git.Git.GIT_PYTHON_GIT_EXECUTABLE
+                if not git_ok:
+                    self.packages[package_name][0] = False
 
     def create_menu(self):
         self.add_menuitem('Settings',
                           self.ui.actions[self.name + '.show_dialog'])
+        self.add_menuitem('Settings',
+                          self.ui.actions[self.name + '.update_check'])
+
+    def _perform_update(self, package):
+        stream = VisualLogStream(self.plugin.ui)
+        try:
+            checkout_branch(package, stream)
+        finally:
+            diag = getattr(stream, 'dialog', None)
+            if diag is not None:
+                diag.btn_close.setEnabled(True)
+
+    def update_check(self):
+        self._check_git()
+        available = []
+        for Name, (enabled, urls) in self.packages.iteritems():
+            name = Name.lower()
+            if enabled:
+                if (check_git_repo(name) and
+                        self.settings['check_for_git_updates']):
+                    # TODO: Check for commits to pull
+                    pass
+                else:
+                    import pip
+                    c = pip.commands.ListCommand()
+                    options, args = c.parse_args([])
+
+                    for dist, version, typ in c.find_packages_latest_versions(
+                            options):
+                        if dist.key == name and version > dist.parsed_version:
+                            available.append(name)
+
+        if available:
+            w = self._get_update_list(available)
+            dr = self.ui.show_okcancel_dialog("Updates available", w).result()
+            if dr == QDialog.Accepted:
+                for chk in w.children():
+                    if isinstance(chk, QCheckBox):
+                        self._perform_update(chk.text())
+        else:
+            mb = QMessageBox(QMessageBox.Information, tr("No updates"),
+                             tr("No new updates were found."),
+                             parent=self.ui)
+            mb.exec_()
+
+    def _get_update_list(self, names):
+        w = QWidget()
+        vbox = QVBoxLayout()
+        vbox.addWidget(QLabel(tr("The following updates are available. Do you "
+                                 "want to update them?")))
+        for n in names:
+            vbox.addWidget(QCheckBox(n))
+        w.setLayout(vbox)
 
     def show_dialog(self):
         if len(self.dialogs) > 0:
             diag = self.dialogs[0]
         else:
+            self._check_git()
             diag = VersionSelectionDialog(self, self.ui)
         self.open_dialog(diag)
 
@@ -173,21 +275,7 @@ class VersionSelectionDialog(QDialog):
     def __init__(self, plugin, parent=None):
         super(VersionSelectionDialog, self).__init__(parent)
         self.plugin = plugin
-        self.packages = {
-            'HyperSpy': [True, 'https://github.com/hyperspy/hyperspy'],
-            'HyperSpyUI': [True, 'https://github.com/vidartf/hyperspyui'],
-            }
-        for package_name in self.packages.iterkeys():
-            if check_git_repo(package_name.lower()):
-                git_ok = use_git
-                if git_ok:
-                    git_ok = check_git_cmd(True, parent)
-                    self.plugin.settings['git_executable'] = \
-                        git.Git.GIT_PYTHON_GIT_EXECUTABLE
-                if not git_ok:
-                    self.packages[package_name][0] = False
-#                    msg = tr('Package "%s" is in a git repo, but set to not '
-#                             'use git.') % package_name
+        self.packages = plugin.packages
         self._prev_indices = {}
         self.create_controls()
 
@@ -212,11 +300,18 @@ class VersionSelectionDialog(QDialog):
 
         vbox = QVBoxLayout()
         form = QFormLayout()
-        for Name, (enabled, url) in self.packages.iteritems():
+        for Name, (enabled, urls) in self.packages.iteritems():
             name = Name.lower()
             cbo = QComboBox()
             if enabled:
-                branches = get_branches(name, url)
+                branches = get_branches(name, urls[0])
+                if len(urls) > 1:
+                    for url in urls[1:]:
+                        try:
+                            b = get_branches(name, url)['hyperspyui']
+                            branches.update({'hyperspyui': b})
+                        except KeyError:
+                            pass
                 for n, b in branches.iteritems():
                     cbo.addItem(n, b)
                 if not check_git_repo(name):

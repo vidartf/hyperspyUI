@@ -1,0 +1,79 @@
+
+shallow_clone: true
+
+environment:
+
+  global:
+    NSIS_DIR: "%PROGRAMFILES(x86)%/NSIS"
+    NSIS_COMMON: '/DPRODUCT_VERSION="%APPVEYOR_REPO_TAG_NAME%"'
+    BUNDLE_PATH: '.\bundle_prerequisites\hspy_bundle.exe'
+
+  matrix:
+    - PYTHON: "C:\\Miniconda-x64"
+      PYTHON_VERSION: "2.7.x"
+      PYTHON_MAJOR: 2
+      ARCH: "64"
+      NSIS_DEF: '/DCL64=1'
+      HSPY_URL64: 'https://github.com/hyperspy/hyperspy/releases/download/v0.8.1/HyperSpy-0.8.1-Bundle-Windows-64bit.exe'
+      HSPY_CRC: ''
+
+    - PYTHON: "C:\\Miniconda"
+      PYTHON_VERSION: "2.7.x"
+      PYTHON_MAJOR: 2
+      ARCH: "32"
+      HSPY_URL: 'https://github.com/hyperspy/hyperspy/releases/download/v0.8.1/HyperSpy-0.8.1-Bundle-Windows-32bit.exe'
+      HSPY_CRC: ''
+
+init:
+  - "ECHO %PYTHON% %PYTHON_VERSION% %ARCH%"
+  - "ECHO %APPVEYOR_BUILD_FOLDER%"
+  - "ECHO %CMD_IN_ENV%"
+
+install:
+  - ps: Add-AppveyorMessage "Starting install..."
+  # Prepend Python to the PATH
+  - "SET ORIGPATH=%PATH%"
+  - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
+  # Download hyperspy bundles
+  - ps: Add-AppveyorMessage "Downloading HyperSpy bundle..."
+  - ps: appveyor DownloadFile $Env:HSPY_URL -FileName $Env:BUNDLE_PATH
+  - ps: Write-Output (Get-FileHash $Env:BUNDLE_PATH)
+  - ps: if ((Get-FileHash $Env:BUNDLE_PATH).Hash -ne $Env:HSPY_CRC) { exit(1) }
+
+  # Check that we have the expected version and architecture for Python
+  - "python --version"
+  - "python -c \"import struct; print(struct.calcsize('P') * 8)\""
+
+  # Install the dependencies of the project.
+  - ps: Add-AppveyorMessage "Installing conda packages..."
+  - "%CMD_IN_ENV% conda install pip"
+  - ps: Add-AppveyorMessage "Installing hyperspyui..."
+  - "python setup.py bdist_wheel"
+  - "/DWHEEL=.whl"
+
+  # Patch NSIS to allow longer strings
+  - ps: Add-AppveyorMessage "Setting up NSIS environment..."
+  - ps: Start-FileDownload ('http://freefr.dl.sourceforge.net/project/nsis/NSIS%202/2.46/nsis-2.46-strlen_8192.zip') ../nsis_patch.zip
+  - ps: if ((Get-FileHash '../nsis_patch.zip').Hash -ne '3BA22DDC0F14DBD75A9487EB6C9BD85F535E7038927D251103B97E0AAD94EEAD') { exit(1) }
+  - "7z x ../nsis_patch.zip -o%NSIS_DIR -aoa"
+  - ps: Start-FileDownload ('http://nsis.sourceforge.net/mediawiki/images/e/eb/Textreplace.zip') ../Textreplace.zip
+  - ps: if ((Get-FileHash '../Textreplace.zip').Hash -ne '6462C0C22E87E7C81DD9076D40ACC74C515243A56F10F4F8FE720F7099DB3BA2') { exit(1) }
+  - "7z x ../Textreplace.zip -o%NSIS_DIR% -aoa"
+
+test_script:
+ - ps: Add-AppveyorMessage "Creating installer..."
+  - "\"%NSIS_DIR%/makensis.exe\" /V4 win_bundle.nsi"
+  - "mv HyperSpyUI-Bundle.exe HyperSpyUI-%APPVEYOR_REPO_TAG_NAME%-Bundle-%ARCH%bit.exe
+  - ps: Add-AppveyorMessage "Installer created!"
+
+deploy:
+  release: $(APPVEYOR_REPO_TAG_NAME)
+  description: 'Release: $(APPVEYOR_REPO_COMMIT_MESSAGE)'
+  provider: GitHub
+  auth_token:
+    secure: KwAfARhGEqOnZHltPB6kKu8xmnoiGSk7NMYJBIEbWvFCuVnepoPV7ZcIjUN3pUpK
+  artifact: /.*HyperSpyUI-.*\.exe/              # upload all exe installers to release assets
+  draft: true
+  prerelease: false
+  on:
+    appveyor_repo_tag: true        # deploy on tag push only

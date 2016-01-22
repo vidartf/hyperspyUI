@@ -24,8 +24,10 @@ Created on Sat Dec 13 00:41:15 2014
 import os
 import sys
 import imp
+import glob
 import warnings
 import traceback
+
 from hyperspyui.plugins.plugin import Plugin
 from hyperspyui.settings import Settings
 
@@ -65,7 +67,9 @@ class PluginManager(object):
         self.plugins = {}
         self.ui = main_window
         self._enabled = {}
-        self.settings = Settings(self.ui, group="PluginManager/enabled")
+        self.settings = Settings(self.ui, group="General")
+        self.settings.set_default("extra_plugin_directories", "")
+        self.enabled_store = Settings(self.ui, group="PluginManager/enabled")
 
         self.discover()
 
@@ -84,7 +88,7 @@ class PluginManager(object):
         """Enable/disable plugin functionality. Also loads/unloads plugin. If
         enabling and the plugin is already loaded, this will reload the plugin.
         """
-        self.settings[name] = value
+        self.enabled_store[name] = value
         ptype = self._enabled[name][1]
         self._enabled[name] = (value, ptype)
         if name in self.plugins:
@@ -101,7 +105,22 @@ class PluginManager(object):
         """Auto-discover all plugins defined in plugin directory.
         """
         import hyperspyui.plugins as plugins
-        for plug in plugins.__all__:
+        candidates = list(plugins.__all__)
+        extra_paths = self.settings['extra_plugin_directories']
+        if extra_paths:
+            extra_paths = os.path.pathsep.split(extra_paths)
+            for path in extra_paths:
+                modules = glob.glob(os.path.dirname(path) + "/*.py")
+                # modules.extend(glob.glob(os.path.dirname(__file__)+"/*.py?"))
+                # TODO: In release form, we should support compiled plugins in
+                #       pyc/pyo format
+                extras = [os.path.splitext(os.path.basename(f))[0]
+                          for f in modules
+                          if not os.path.basename(f).startswith('_')]
+                # Make unique as py/pyc/pyo all match
+                extras = list(set(extras))
+                candidates.extend(extras)
+        for plug in candidates:
             try:
                 __import__('plugins.' + plug, globals())
 
@@ -176,10 +195,10 @@ class PluginManager(object):
     def _load_if_enabled(self, p_type):
         if p_type is None or p_type.name is None:
             return
-        if self.settings[p_type.name] is None:
+        if self.enabled_store[p_type.name] is None:
             # Init setting to True on first encounter
-            self.settings[p_type.name] = True
-        enabled = (self.settings[p_type.name].lower() == "true")
+            self.enabled_store[p_type.name] = True
+        enabled = (self.enabled_store[p_type.name].lower() == "true")
         self._enabled[p_type.name] = (enabled, p_type)
         if enabled:
             # Init

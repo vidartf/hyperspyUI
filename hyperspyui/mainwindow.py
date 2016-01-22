@@ -27,6 +27,7 @@ import argparse
 import os
 import sys
 import pickle
+import re
 import numpy as np
 
 # Should go before any MPL imports:
@@ -77,6 +78,8 @@ class MainWindow(MainWindowLayer5):
         self._plugin_manager_widget = None
 
         super(MainWindow, self).__init__(parent)
+        self._orig_console_execute = self.console._execute
+        self.console._execute = self._console_escape
 
         # Set window icon
         self.setWindowIcon(QIcon(os.path.dirname(__file__) +
@@ -420,3 +423,13 @@ class MainWindow(MainWindowLayer5):
             if old_info.max > info.max:
                 signal.data *= float(info.max) / np.nanmax(signal.data)
         signal.change_dtype(data_type)
+
+    # Matches unescaped dollar signs
+    dol_replace = re.compile(r'(?<!\$)\$(?!\$)')
+    dol_unescape = re.compile(r'\$\$')
+
+    def _console_escape(self, source, hidden):
+        source = re.sub(self.dol_replace, 'ui.get_selected_signal()', source)
+        source = re.sub(self.dol_unescape, '$', source)
+        self._orig_console_execute(source, hidden)
+
