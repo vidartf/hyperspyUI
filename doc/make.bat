@@ -276,7 +276,9 @@ if "%1" == "gh-pages" (
 	for /f %%a IN ('dir not_ignored /b') do move not_ignored\%%a ..\
 	rmdir /S /Q not_ignored
 	git add -A
-	git commit -m "Generated gh-pages for %commitmsg%" && git push origin gh-pages && git co master
+	git commit -m "Generated gh-pages for %commitmsg%" || goto end
+	echo.
+	echo.Build finished. The changes have been commited, but not yet pushed.
 	goto end
 )
 
