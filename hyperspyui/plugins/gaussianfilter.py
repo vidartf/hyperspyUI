@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
