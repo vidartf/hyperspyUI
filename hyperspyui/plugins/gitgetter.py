@@ -195,6 +195,7 @@ class GitSelector(Plugin):
 
     def __init__(self, main_window):
         super(GitSelector, self).__init__(main_window)
+        self.settings.set_default('check_for_updates_on_start', True)
         self.settings.set_default('check_for_git_updates', False)
         self.packages = {
             'HyperSpy': [True, ['https://github.com/hyperspy/hyperspy',
@@ -232,10 +233,11 @@ class GitSelector(Plugin):
                           self.ui.actions[self.name + '.update_check'])
 
     def _on_load_complete(self):
-        self.update_check(silent=True)
+        if self.settings['check_for_updates_on_start', bool]:
+            self.update_check(silent=True)
 
     def _perform_update(self, package):
-        stream = VisualLogStream(self.plugin.ui)
+        stream = VisualLogStream(self.ui)
         try:
             checkout_branch(package, stream)
         finally:
@@ -284,8 +286,8 @@ class GitSelector(Plugin):
 
         if available:
             w = self._get_update_list(available.keys())
-            dr = self.ui.show_okcancel_dialog("Updates available", w).result()
-            if dr == QDialog.Accepted:
+            diag = self.ui.show_okcancel_dialog("Updates available", w)
+            if diag.result() == QDialog.Accepted:
                 for chk in w.children():
                     if isinstance(chk, QCheckBox):
                         name = chk.text()
@@ -306,6 +308,7 @@ class GitSelector(Plugin):
         for n in names:
             vbox.addWidget(QCheckBox(n))
         w.setLayout(vbox)
+        return w
 
     def show_dialog(self):
         if len(self.dialogs) > 0:
@@ -351,11 +354,14 @@ class VersionSelectionDialog(QDialog):
             cbo = QComboBox()
             if enabled:
                 branches = get_branches(name, urls[0])
+                # Add a selection of branches from vidartf repo
                 if len(urls) > 1:
                     for url in urls[1:]:
                         try:
                             b = get_branches(name, url)['hyperspyui']
                             branches.update({'hyperspyui': b})
+                            b = get_branches(name, url)['hyperspyui_py3']
+                            branches.update({'hyperspyui_py3': b})
                         except KeyError:
                             pass
                 for n, b in branches.iteritems():
