@@ -5,7 +5,7 @@ Available actions
 =================
 
 Most menu entries and toolbar buttons trigger an `action` when clicked. This
-is a rather loose definition, but actions are different from 
+is a rather loose definition, but actions are different from
 :ref:`tools-section` and :ref:`widgets-section`.
 
 The list below is sorted on category, which roughly corresponds to the
@@ -23,7 +23,7 @@ File
 Open
 """""""""""""""""""
 Open a dialog to let the user interactively browse for files. It then loads
-these files using :py:meth:`hyperspy.io.load` before plotting the loaded
+these files using :py:func:`hyperspy.io.load` before plotting the loaded
 signals.
 
 Open Stack
@@ -41,7 +41,7 @@ Save the selected signal(s).
 Save figure
 """""""""""""""
 Save the currently active figure using matplotlib's
-:py:meth:`~matplotlib.figure.Figure.savefig`. Note that this does not care 
+:py:meth:`~matplotlib.figure.Figure.savefig`. Note that this does not care
 about how the figure was produced, or the underlying resolution of the data.
 
 .. _new-editor:
@@ -76,18 +76,18 @@ Signal
 Signal type
 """""""""""""""
 Changes the signal type using a combination of methods on
-:py:class:`hyperspy.Signal`:
+:py:class:`hyperspy.signal.Signal`:
 
-    * :py:meth:`~hyperspy.Signal.set_signal_type()`
-    * :py:meth:`~hyperspy.Signal.set_signal_origin()`
-    * and by converting with :py:meth:`~hyperspy.Signal.as_image()` and
-      :py:meth:`~hyperspy.Signal.as_spectrum()`.
+    * :py:meth:`~hyperspy.signal.Signal.set_signal_type()`
+    * :py:meth:`~hyperspy.signal.Signal.set_signal_origin()`
+    * and by converting with :py:meth:`~hyperspy.signal.Signal.as_image()` and
+      :py:meth:`~hyperspy.signal.Signal.as_spectrum()`.
 
 Signal data type
 """"""""""""""""""""""""""""""""""""
 Change the data type use to store the signal data internally. See
-the `numpy docs`_ for details. The operation is performed by 
-:py:meth:`hyperspy.signal.Signal.change_dtype`.
+the `numpy docs`_ for details. The operation is performed by
+:py:meth:`~hyperspy.signal.Signal.change_dtype`.
 
 .. _numpy docs: http://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html#data-type-objects-dtype
 
@@ -104,13 +104,13 @@ signal.
 
 Statistics
 """"""""""""""""""""""""""""""""""""
-Print the signal statistics to the console. See 
-:py:meth:`hyperspy.signal.Signal.print_summary_statistics` for details.
+Print the signal statistics to the console. See
+:py:meth:`~hyperspy.signal.Signal.print_summary_statistics` for details.
 
 Histogram
 """"""""""""""""""""""""""""""""""""
-Plot a histogram of the signal. See 
-:py:meth:`hyperspy.signal.Signal.get_histogram` for details. The method
+Plot a histogram of the signal. See
+:py:meth:`~hyperspy.signal.Signal.get_histogram` for details. The method
 for determining the number of bins can be set in the :ref:`settings-section`.
 
 Mirror navigation
@@ -126,7 +126,7 @@ plot.
 Rebin
 """"""""""""""""""""""""""""""""""""
 Opens a dialog to rebin the signal. See
-:py:meth:`hyperspy.signal.Signal.rebin` for details.
+:py:meth:`~hyperspy.signal.Signal.rebin` for details.
 
 
 
@@ -158,12 +158,12 @@ The newly created component is accessible through the :ref:`data-widget`.
 Plot components
 """""""""""""""
 Toggle the plotting of each component together with the model, as performed
-by :py:meth:`hyprespy.Model1D.enable_plot_components()`.
+by :py:meth:`~hyprespy.models.Model1D.enable_plot_components()`.
 
 Adjust component positions
 """"""""""""""""""""""""""
 Add/remove widgets to adjust the position of the components in the model, as
-performed by :py:meth:`hyprespy.Model1D.enable_adjust_position()`.
+performed by :py:meth:`~hyprespy.models.Model1D.enable_adjust_position()`.
 
 
 
@@ -181,8 +181,8 @@ number of components to use for a decomposition model. The selection is made
 by clicking on the in the scree plot on the first component to
 `not be included` in the decomposition. The scree plot will then automatically
 close and the decomposition model plotted (see
-:py:meth:`hyperspy.Signal.decomposition` and
-:py:meth:`hyperspy.Signal.get_decomposition_model`).
+:py:meth:`~hyperspy.signal.Signal.decomposition` and
+:py:meth:`~hyperspy.signal.Signal.get_decomposition_model`).
 
 BSS
 """""""""""""""
@@ -192,8 +192,8 @@ number of components to use for a blind source separation. The selection
 is made by clicking in the scree plot on the first component to
 `not be included` in the decomposition. The scree plot will then automatically
 close and the BSS algortihm run (see
-:py:meth:`hyperspy.Signal.blind_source_separation` and
-:py:meth:`hyperspy.Signal.plot_bss_results`).
+:py:meth:`~hyperspy.signal.Signal.blind_source_separation` and
+:py:meth:`~hyperspy.signal.Signal.plot_bss_results`).
 
 
 Decomposition results
@@ -201,7 +201,7 @@ Decomposition results
 
 Performs decomposition if necessary, then plots the decomposition results
 according to the hyperspy's
-:py:meth:`hyperspy.Signal.plot_decomposition_results`.
+:py:meth:`~hyperspy.signal.Signal.plot_decomposition_results`.
 
 
 
@@ -216,27 +216,27 @@ Spectrum
 Smooth Savitzky-Golay
 """"""""""""""""""""""""""""""""""""
 Apply a Savitzky-Golay filter. See
-:py:meth:`hyperspy.signal.Signal.smooth_savitzky_golay` for details.
+:py:meth:`~hyperspy.signal.Signal1DTools.smooth_savitzky_golay` for details.
 
 Smooth Lowess
 """"""""""""""""""""""""""""""""""""
 Apply a Lowess smoothing filter. See
-:py:meth:`hyperspy.signal.Signal.smooth_lowess` for details.
+:py:meth:`~hyperspy.signal.Signal1DTools.smooth_lowess` for details.
 
 Smooth Total variation
 """"""""""""""""""""""""""""""""""""
 Total variation data smoothing. See
-:py:meth:`hyperspy.signal.Signal.smooth_tv` for details.
+:py:meth:`~hyperspy.signal.Signal1DTools.smooth_tv` for details.
 
 Butterworth filter
 """"""""""""""""""""""""""""""""""""
 Apply a Butterworth filter. See
-:py:meth:`hyperspy.signal.Signal.filter_butterworth` for details.
+:py:meth:`~hyperspy.signal.Signal1DTools.filter_butterworth` for details.
 
 Hanning taper
 """"""""""""""""""""""""""""""""""""
 Apply a Hanning taper to both ends of the data. See
-:py:meth:`hyperspy.signal.Signal.hanning_taper` for details.
+:py:meth:`~hyperspy.signal.Signal1DTools.hanning_taper` for details.
 
 
 
@@ -250,25 +250,25 @@ EELS
 Remove Background
 """"""""""""""""""""""""""""""""""""
 Interactively define the background, and remove it. See
-:py:meth:`hyperspy.signal.Signal.remove_background` for details.
+:py:meth:`~hyperspy.signal.Signal1DTools.remove_background` for details.
 
 Fourier Ratio Deconvoloution
 """"""""""""""""""""""""""""""""""""
 Use the Fourier-Ratio method to deconvolve one signal from another.
 
 .. note::
-    
+
     The background should be removed with e.g. `Remove Background`_ before
     running Fourier ratio deconvolution.
 
-See :py:meth:`hyperspy.signals.EELSSpectrum.fourier_ratio_deconvolution` 
-for details. 
+See :py:meth:`~hyperspy._signals.eels.EELSSpectrum.fourier_ratio_deconvolution`
+for details.
 
 Estimate thickness
 """"""""""""""""""""""""""""""""""""
-Estimates the thickness (relative to the mean free path) of a sample using 
-the log-ratio method. See 
-:py:meth:`hyperspy.signals.EELSSpectrum.estimate_thickness` for details.
+Estimates the thickness (relative to the mean free path) of a sample using
+the log-ratio method. See
+:py:meth:`hyperspy._signals.eels.EELSSpectrum.estimate_thickness` for details.
 
 Browse EELSDB
 """"""""""""""""""""""""""""""""""""
@@ -311,17 +311,23 @@ Virtual navigator
 """"""""""""""""""""""""""""""""""""
 Set the navigator intensity by a virtual aperture.
 
-.. note:: 
-    Setting a virtual navigator will replot the signal, so any existing 
+.. note::
+    Setting a virtual navigator will replot the signal, so any existing
     apertures will be lost. Therefore always add the virtual navigator first
     if you want to use one.
 
 .. figure:: virtual_apertures.png
 
     Example of a signal with a virtual navigator and three virtual apertures.
-    The navigator (orange circle) selects the direct beam, giving a virtual 
+    The navigator (orange circle) selects the direct beam, giving a virtual
     bright-field image, while the other apertures select diffraction spots
     unique to three different grains/phases.
+
+Virtual annulus
+""""""""""""""""""""""""""""""""""""
+Add a virtual annulus to the diffraction image. An annulus is simply a hollow
+disc, and it can be moved around and resized, allowing for an interactive
+creation of virtual annular dark field images.
 
 
 
@@ -409,7 +415,7 @@ Version selector
 Open dialog to select branch/version of HyperSpy/HyperSpyUI.
 
  .. warning::
-    
+
     This can invalidate your installation of HyperSpyUI and/or HyperSpy. Use
     with caution!
 
@@ -417,13 +423,13 @@ Opens up a dialogbox that enables you to install a specific GitHub branch for
 HyperSpy and HyperSpyUI. This will basically download and install the selected
 branch using `pip`_, whether or not that version works or if the HyperSpy and
 HyperSpyUI verions are internally compatible, or even compatible with your
-version of Python. As this can prevent you from starting the application 
+version of Python. As this can prevent you from starting the application
 afterwards, you might end up having to reinstall it.
 
 .. _pip: http://pip.pypa.io/
 
 .. note::
-    
+
     If your current installation is a git repository, this will check out
     the selected branch instead of doing a pip install.
 
@@ -459,7 +465,7 @@ Edit the HyperSpy package settings.
 
 Edit settings
 """""""""""""""
-Shows a dialog for editing the application and plugins settings. See 
+Shows a dialog for editing the application and plugins settings. See
 
 
 

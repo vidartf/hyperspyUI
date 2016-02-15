@@ -132,7 +132,6 @@ class SettingsDialog(ExToolWindow):
                 w.addItems(hints)
                 w.setEditable(True)
                 w.setEditText(v)
-                print v, w.currentText(), hints
                 w.editTextChanged.connect(partial(self._on_setting_changed,
                                                   abs_key, w))
             elif isinstance(v, basestring):
