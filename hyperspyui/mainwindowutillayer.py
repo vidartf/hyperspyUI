@@ -288,7 +288,7 @@ class MainWindowUtils(MainWindowBase):
             title = tr('Load file') if exists else tr('Save file')
         path = path or self.cur_dir
         if def_filter is None and extension_filter:
-            def_filter = extension_filter.split(';;', maxsplit=1)[0]
+            def_filter = extension_filter.split(';;', 1)[0]
 
         if exists:
             filenames = QFileDialog.getOpenFileNames(
