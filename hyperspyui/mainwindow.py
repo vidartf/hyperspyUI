@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -26,12 +26,12 @@ from functools import partial
 import argparse
 import os
 import sys
-import pickle
+import json
 import re
 import numpy as np
 
 # Should go before any MPL imports:
-from hyperspyui.mainwindowlayer5 import MainWindowLayer5, tr
+from hyperspyui.mainwindowhyperspy import MainWindowHyperspy, tr
 
 from hyperspyui.util import create_add_component_actions, win2sig, dict_rlu
 from hyperspyui.widgets.contrastwidget import ContrastWidget
@@ -48,7 +48,7 @@ import hyperspy.utils.plot
 import hyperspy.signals
 
 
-class MainWindow(MainWindowLayer5):
+class MainWindow(MainWindowHyperspy):
 
     """
     Main window of the application. Top layer in application stack. Is
@@ -71,6 +71,8 @@ class MainWindow(MainWindowLayer5):
          ('Image', hyperspy.signals.Image),
          ('Image simulation', hyperspy.signals.ImageSimulation)])
 
+    load_complete = Signal()
+
     def __init__(self, parent=None):
         # State variables
         self.signal_type_ag = None
@@ -92,8 +94,8 @@ class MainWindow(MainWindowLayer5):
         self.set_status("Ready")
 
         # Redirect streams (wait until the end to not affect during load)
-        self.settings.set_default('Output to console', False)
-        if self.settings['Output to console'].lower() == 'true':
+        self.settings.set_default('output_to_console', False)
+        if self.settings['output_to_console', bool]:
             self._old_stdout = sys.stdout
             self._old_stderr = sys.stdout
             sys.stdout = self.console.kernel.stdout
@@ -107,12 +109,12 @@ class MainWindow(MainWindowLayer5):
         that were passed to the new instance.
         """
         super(MainWindow, self).handleSecondInstance(argv)
-        argv = pickle.loads(argv)
+        argv = json.loads(argv)
         self.parse_args(argv)
 
     def parse_args(self, argv=None):
         """
-        Parse comman line arguments, either from sys.argv, or from parameter
+        Parse command line arguments, either from sys.argv, or from parameter
         'argv'.
         """
         parser = argparse.ArgumentParser(
@@ -167,7 +169,7 @@ class MainWindow(MainWindowLayer5):
         self.add_action('save_fig', "Save &figure", self.save_figure,
                         tip="Save the active figure")
 
-        self.add_action('add_model', "Create Model", self.make_model,
+        self.add_action('add_model', "Create Model", self.add_model,
                         selection_callback=self.select_signal,
                         tip="Create a model for the selected signal")
 
@@ -184,7 +186,7 @@ class MainWindow(MainWindowLayer5):
         # --- Add signal type selection actions ---
         signal_type_ag = QActionGroup(self)
         signal_type_ag.setExclusive(True)
-        for st in self.signal_types.iterkeys():
+        for st in self.signal_types.keys():
             f = partial(self.set_signal_type, st)
             st_ac = self.add_action('signal_type_' + st, st, f)
             st_ac.setCheckable(True)
@@ -201,7 +203,7 @@ class MainWindow(MainWindowLayer5):
                   np.uint, np.uint8, np.uint16, np.uint32, np.uint64, 'Custom'
                   ]:
             f = partial(self.set_signal_dtype, t)
-            if isinstance(t, basestring):
+            if isinstance(t, str):
                 st = t.lower()
             else:
                 st = t.__name__
@@ -211,12 +213,18 @@ class MainWindow(MainWindowLayer5):
             signal_datatype_ag.addAction(sdt_ac)
         self.signal_datatype_ag = signal_datatype_ag
 
+        # Start disabled until a valid figure is selected
+        self.signal_type_ag.setEnabled(False)
+        self.signal_datatype_ag.setEnabled(False)
+
         # --- Add "add component" actions ---
         comp_actions = create_add_component_actions(self, self.make_component)
         self.comp_actions = []
-        for ac_name, ac in comp_actions.iteritems():
+        for ac_name, ac in comp_actions.items():
             self.actions[ac_name] = ac
             self.comp_actions.append(ac_name)
+            self._action_selection_cbs[ac_name] = self._check_add_component_ok
+            ac.setEnabled(False)
 
     def create_menu(self):
         mb = self.menuBar()
@@ -287,6 +295,13 @@ class MainWindow(MainWindowLayer5):
     # Events
     # ---------------------------------------
 
+    def _check_add_component_ok(self, win, action):
+        s = win2sig(win, self.signals, self._plotting_signal)
+        if s is None:
+            action.setEnabled(False)
+        else:
+            action.setEnabled(True)
+
     def on_subwin_activated(self, mdi_figure):
         super(MainWindow, self).on_subwin_activated(mdi_figure)
         s = win2sig(mdi_figure, self.signals, self._plotting_signal)
@@ -295,6 +310,8 @@ class MainWindow(MainWindowLayer5):
                 ac.setChecked(False)
             for ac in self.signal_datatype_ag.actions():
                 ac.setChecked(False)
+            self.signal_type_ag.setEnabled(False)
+            self.signal_datatype_ag.setEnabled(False)
         else:
             t = type(s.signal)
             key = 'signal_type_' + dict_rlu(self.signal_types, t)
@@ -304,11 +321,13 @@ class MainWindow(MainWindowLayer5):
                 self.actions[key2].setChecked(True)
             else:
                 self.actions['signal_data_type_custom'].setChecked(True)
+            self.signal_type_ag.setEnabled(True)
+            self.signal_datatype_ag.setEnabled(True)
 
     def on_settings_changed(self):
         # Redirect streams (wait until the end to not affect during load)
         super(MainWindow, self).on_settings_changed()
-        if self.settings['Output to console'].lower() == 'true':
+        if self.settings['output_to_console', bool]:
             if self._old_stdout is None:
                 self._old_stdout = sys.stdout
                 self._old_stderr = sys.stderr
@@ -370,9 +389,10 @@ class MainWindow(MainWindowLayer5):
         # to be diferentiated based on behavior either way.
         if signal is None:
             signal = self.get_selected_wrapper()
+        self.record_code("signal = ui.get_selected_signal()")
 
         # Sanity check
-        if signal_type not in self.signal_types.keys():
+        if signal_type not in list(self.signal_types.keys()):
             raise ValueError()
 
         self.setUpdatesEnabled(False)
@@ -382,24 +402,30 @@ class MainWindow(MainWindowLayer5):
                                   (hyperspy.signals.Image,
                                    hyperspy.signals.ImageSimulation)):
                     signal.as_image()
+                    self.record_code("signal = signal.as_image()")
             elif signal_type in['Spectrum', 'Spectrum simulation', 'EELS',
                                 'EELS simulation', 'EDS SEM', 'EDS TEM']:
                 if isinstance(signal.signal,
                               (hyperspy.signals.Image,
                                hyperspy.signals.ImageSimulation)):
                     signal.as_spectrum()
+                    self.record_code("signal = signal.as_spectrum()")
 
             if signal_type in ['EELS', 'EDS SEM', 'EDS TEM']:
                 underscored = signal_type.replace(" ", "_")
                 signal.signal.set_signal_type(underscored)
+                self.record_code("signal.set_signal_type('%s')" % underscored)
             elif signal_type == 'EELS simulation':
                 signal.signal.set_signal_type('EELS')
+                self.record_code("signal.set_signal_type('EELS')")
 
             if signal_type in ['Spectrum simulation', 'Image simulation',
                                'EELS simulation']:
                 signal.signal.set_signal_origin('simulation')
+                self.record_code("signal.set_signal_origin('simulation')")
             else:
                 signal.signal.set_signal_origin('')  # Undetermined
+                self.record_code("signal.set_signal_origin('')")
 
             signal.plot()
         finally:
@@ -408,7 +434,8 @@ class MainWindow(MainWindowLayer5):
     def set_signal_dtype(self, data_type, signal=None, clip=False):
         if signal is None:
             signal = self.get_selected_signal()
-        if isinstance(data_type, basestring) and data_type.lower() == 'custom':
+        self.record_code("signal = ui.get_selected_signal()")
+        if isinstance(data_type, str) and data_type.lower() == 'custom':
             return    # TODO: Show dialog and prompt
         if not clip:
             old_type = signal.data.dtype
@@ -422,7 +449,12 @@ class MainWindow(MainWindowLayer5):
                 old_info = np.finfo(old_type)
             if old_info.max > info.max:
                 signal.data *= float(info.max) / np.nanmax(signal.data)
+                self.record_code("signal.data *= %f / np.nanmax(signal.data)" %
+                                 float(info.max))
         signal.change_dtype(data_type)
+        dts = data_type.__name__
+        if data_type.__module__ == 'numpy':
+            dts = 'np.' + dts
 
     # Matches unescaped dollar signs
     dol_replace = re.compile(r'(?<!\$)\$(?!\$)')
@@ -431,5 +463,4 @@ class MainWindow(MainWindowLayer5):
     def _console_escape(self, source, hidden):
         source = re.sub(self.dol_replace, 'ui.get_selected_signal()', source)
         source = re.sub(self.dol_unescape, '$', source)
-        self._orig_console_execute(source, hidden)
 

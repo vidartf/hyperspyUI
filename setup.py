@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -23,14 +23,9 @@ Created on Mon Nov 17 11:58:16 2014
 @author: Vidar Tonaas Fauske
 """
 
-import os
 from setuptools import setup, find_packages
 
 import hyperspyui.info
-
-platform_req = []
-if os.name == 'nt':
-    platform_req.append('pywin32')
 
 setup(
     name='hyperspyUI',
@@ -38,7 +33,7 @@ setup(
     description='Hyperspy Graphical User Interface',
     author='Vidar Tonaas Fauske',
     author_email='vidartf+hyperspyui@gmail.com',
-    url='http://github.com/vidartf/hyperspyUI/',
+    url='http://github.com/hyperspy/hyperspyUI/',
     license='GPLv3',
     packages=find_packages(exclude=['tests*',
                                     'hyperspyui.plugins.user_plugins']),
@@ -50,7 +45,7 @@ setup(
               'traits',
               'traitsui',
               'qtconsole',
-              ] + platform_req,
+              ],
     install_requires=['hyperspy >= 0.8.1',
                       'matplotlib >= 1.3',
                       'python_qt_binding',
@@ -59,7 +54,12 @@ setup(
                       'traits',
                       'traitsui',
                       'qtconsole',
-                      ] + platform_req,
+                      ],
+    extras_require={
+        ':sys_platform == "win32"': [
+            'pywin32',
+        ]
+    },
     package_data={
         'hyperspyui':
         ['images/*.svg',
@@ -72,7 +72,7 @@ setup(
     },
     entry_points={
         'gui_scripts': [
-            'HyperSpyUI = hyperspyui.launch:main',
+            'hyperspyui = hyperspyui.launch:main',
          ]
     },
     scripts=[
@@ -82,8 +82,10 @@ setup(
     keywords=[
     ],
     classifiers=[
-        "Programming Language :: Python :: 2.7",
-        "Programming Language :: Python :: 2 :: Only",
+        "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3 :: Only",
         "Environment :: MacOS X",
         "Environment :: Win32 (MS Windows)",
         "Environment :: X11 Applications :: Qt",

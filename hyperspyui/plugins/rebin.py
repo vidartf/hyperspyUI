@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -39,7 +39,7 @@ class RebinPlugin(Plugin):
 
     def create_actions(self):
         self.add_action('rebin', tr("Rebin"), self.rebin_dialog,
-                        #                        icon='rebin.svg',
+                        icon='rebin.svg',
                         selection_callback=self.ui.select_signal,
                         tip=tr("Rebin the signal"))
 
@@ -52,7 +52,7 @@ class RebinPlugin(Plugin):
         s = signal.signal
         shape = []
         mods = [tuple()] * len(s.axes_manager.shape)
-        for i in xrange(len(s.axes_manager.shape)):
+        for i in range(len(s.axes_manager.shape)):
             ax = s.axes_manager[i]
             factor = factors[i]
             if factor > ax.size:
@@ -61,7 +61,7 @@ class RebinPlugin(Plugin):
                 mods[ax.index_in_array] = slice(None)
             else:
                 mods[ax.index_in_array] = slice(None, - (ax.size % factor))
-            shape.append(ax.size / factor)
+            shape.append(ax.size // factor)
         # Crop to multiple of factors
         s.data = s.data[tuple(mods)]
 

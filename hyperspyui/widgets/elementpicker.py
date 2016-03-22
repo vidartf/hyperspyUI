@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -93,7 +93,7 @@ class ElementPickerWidget(FigureWidget):
         self._set_elements(signal.signal.metadata.Sample.elements)
 
         # Disable elements which hyperspy does not accept
-        hsyp_elem = elements_db.keys()
+        hsyp_elem = list(elements_db.keys())
         for w in self.table.children():
             if isinstance(w, ExClickLabel):
                 elem = w.text()
@@ -134,9 +134,12 @@ class ElementPickerWidget(FigureWidget):
         s = self.signal.signal
         lines_added = []
         lines_removed = []
+        self.ui.record_code("signal = ui.get_selected_signal()")
         if element in s.metadata.Sample.elements:
             # Element present, we're removing it
             s.metadata.Sample.elements.remove(element)
+            self.ui.record_code(
+                "signal.metadata.Sample.elements.remove('%s')" % element)
             if 'Sample.xray_lines' in s.metadata:
                 for line in reversed(s.metadata.Sample.xray_lines):
                     if line.startswith(element):
@@ -153,22 +156,35 @@ class ElementPickerWidget(FigureWidget):
                 [element], only_one=False, only_lines=self._only_lines)
             if 'Sample.xray_lines' in s.metadata:
                 s.add_lines(lines_added)  # Will also add element
+                self.ui.record_code(
+                    "signal.add_lines(%s)" % str(lines_added))
             else:
                 s.add_elements((element,))
+                self.ui.record_code(
+                    "signal.add_elements(%s)" % str([element]))
         if self.markers:
             if lines_added:
-                s._add_xray_lines_markers(lines_added)
+                s.add_xray_lines_markers(lines_added)
             if lines_removed:
-                s._remove_xray_lines_markers(lines_removed)
+                s.remove_xray_lines_markers(lines_removed)
 
     def _toggle_element_eels(self, element):
         s = self.signal.signal
+        self.ui.record_code("signal = ui.get_selected_signal()")
         if element in s.metadata.Sample.elements:
             s.elements.remove(element)
             s.subshells = set()
             s.add_elements([])  # Will set metadata.Sample.elements
+            self.ui.record_code(
+                "signal.elements.remove('%s')" % str(element))
+            self.ui.record_code(
+                "signal.subshells = set()")
+            self.ui.record_code(
+                "signal.add_elements([])")
         else:
             s.add_elements((element,))
+            self.ui.record_code(
+                "signal.add_elements(%s)" % str([element]))
 
     def _toggle_subshell(self, subshell, checked):
         if not self.isEDS():
@@ -194,28 +210,38 @@ class ElementPickerWidget(FigureWidget):
                 # Remove element
                 self._toggle_element(element)
 
+        self.ui.record_code("signal = ui.get_selected_signal()")
         if 'Sample.xray_lines' not in s.metadata and len(active) > 0:
             lines = [element + '_' + a for a in active]
             s.add_lines(lines)
+            self.ui.record_code(
+                "signal.add_lines(%s)" % str(lines))
             if self.markers:
                 if checked:
-                    s._add_xray_lines_markers(lines)
+                    s.add_xray_lines_markers(lines)
                 else:
-                    s._remove_xray_lines_markers([subshell])
+                    s.remove_xray_lines_markers([subshell])
         else:
             if checked:
                 s.add_lines([subshell])
+                self.ui.record_code(
+                    "signal.add_lines(%s)" % str([subshell]))
                 if self.markers:
-                    s._add_xray_lines_markers([subshell])
+                    s.add_xray_lines_markers([subshell])
             elif 'Sample.xray_lines' in s.metadata:
                 if subshell in s.metadata.Sample.xray_lines:
                     s.metadata.Sample.xray_lines.remove(subshell)
+                    self.ui.record_code(
+                        "signal.metadata.Sample.xray_lines.remove('%s')" %
+                        str(subshell))
                     if self.markers:
-                        s._remove_xray_lines_markers([subshell])
+                        s.remove_xray_lines_markers([subshell])
                 # If all lines are disabled, fall back to element defined
                 # (Not strictly needed)
                 if len(s.metadata.Sample.xray_lines) < 1:
                     del s.metadata.Sample.xray_lines
+                    self.ui.record_code(
+                        "del signal.metadata.Sample.xray_lines")
 
     def _set_elements(self, elements):
         """
@@ -250,7 +276,8 @@ class ElementPickerWidget(FigureWidget):
                 for m in reversed(s._plot.signal_plot.ax_markers):
                     s._plot.signal_plot.ax_markers.remove(m)
                     m.close()
-                s._xray_markers.clear()
+                if hasattr(s, '_xray_markers'):
+                    s._xray_markers.clear()
 
     def make_map(self):
         """
@@ -348,7 +375,7 @@ class ElementPickerWidget(FigureWidget):
         hbox = QHBoxLayout()
         # TODO: TAG: Feature-check
         if hasattr(hyperspy.signals.EDSTEMSpectrum,
-                   '_add_xray_lines_markers'):
+                   'add_xray_lines_markers'):
             hbox.addWidget(self.chk_markers)
         hbox.addWidget(self.map_btn)
         vbox.addLayout(hbox)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -40,8 +40,15 @@ class BasicSignalPlugin(Plugin):
     def __init__(self, *args, **kwargs):
         super(BasicSignalPlugin, self).__init__(*args, **kwargs)
         self.settings.set_default('histogram_bins_method', 'freedman')
+        self.settings.set_enum_hint(
+            'histogram_bins_method',
+            ('knuth', 'scotts', 'freedman', 'blocks', '<integer>'))
 
     def create_actions(self):
+        self.add_action(self.name + '.stack', self.name, self.stack,
+                        tip="Stack selected signals along a new navigation "
+                        "axis")
+
         self.add_action('stats', tr("Statistics"),
                         self.statistics,
                         icon=None,
@@ -62,7 +69,7 @@ class BasicSignalPlugin(Plugin):
 
         self.add_action('sum', tr("Sum"),
                         self.sum,
-                        icon=None,
+                        icon='sum.svg',
                         tip=tr("Plot the sum of the current signal"),
                         selection_callback=self.ui.select_signal)
 
@@ -95,14 +102,21 @@ class BasicSignalPlugin(Plugin):
 #        indexmax, valuemax
 
     def create_menu(self):
+        self.add_menuitem('Signal', self.ui.actions[self.name + '.stack'])
         self.add_menuitem("Signal", self.ui.actions['stats'])
         self.add_menuitem("Signal", self.ui.actions['histogram'])
-        self.add_menuitem("Signal", self.ui.actions['mean'])
-        self.add_menuitem('Signal', self.ui.actions['sum'])
-        self.add_menuitem('Signal', self.ui.actions['max'])
-        self.add_menuitem('Signal', self.ui.actions['min'])
-        self.add_menuitem('Signal', self.ui.actions['std'])
-        self.add_menuitem('Signal', self.ui.actions['var'])
+        self.add_menuitem("Math", self.ui.actions['mean'])
+        self.add_menuitem('Math', self.ui.actions['sum'])
+        self.add_menuitem('Math', self.ui.actions['max'])
+        self.add_menuitem('Math', self.ui.actions['min'])
+        self.add_menuitem('Math', self.ui.actions['std'])
+        self.add_menuitem('Math', self.ui.actions['var'])
+
+    def stack(self, signals=None):
+        if signals is None:
+            signals = self.ui.get_selected_signals()
+        stack = hs.stack(signals)
+        stack.plot()
 
     def statistics(self, signal=None):
         if signal is None:
@@ -110,13 +124,15 @@ class BasicSignalPlugin(Plugin):
         # If we're using an external console for errors, we need to temporarily
         # redirect stdout
         _old_stdout = None
-        if self.ui.settings['Output to console'].lower() != 'true':
+        if self.ui.settings['output_to_console', bool]:
             _old_stdout = sys.stdout
             sys.stdout = self.ui.console.kernel.stdout
         try:
             signal.print_summary_statistics()
+            self.record_code("signal = ui.get_selected_signal()")
+            self.record_code("signal.print_summary_statistics()")
         finally:
-            if self.ui.settings['Output to console'].lower() != 'true':
+            if self.ui.settings['output_to_console', bool]:
                 sys.stdout = _old_stdout
 
     def histogram(self, signal=None):
@@ -124,6 +140,9 @@ class BasicSignalPlugin(Plugin):
         if signal is not None:
             method = self.settings['histogram_bins_method']
             signal.get_histogram(bins=method).plot()
+            self.record_code("signal = ui.get_selected_signal()")
+            self.record_code("histogram = signal.get_histogram(bins=%s)" %
+                             method)
 
     def _np_method(self, name, signal):
         if signal is None:
@@ -136,6 +155,8 @@ class BasicSignalPlugin(Plugin):
             for ax in signal.axes_manager.navigation_axes:
                 signal = f(ax.index_in_array + 3j)
             signal.plot()
+        self.record_code("signal = ui.get_selected_signal()")
+        self.record_code("result = signal.%s()" % name)
 
     def mean(self, signal=None):
         self._np_method('mean', signal)

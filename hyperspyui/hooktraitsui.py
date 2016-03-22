@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -21,7 +21,17 @@ Created on Sun Nov 23 17:10:41 2014
 @author: Vidar Tonaas Fauske
 """
 
-import traitsui.qt4.ui_base as ui_base
+try:
+    import traitsui.qt4.ui_base as ui_base
+except RuntimeError:
+    import sys
+
+    if 'sphinx' in sys.modules:
+        class Dummy(object): pass
+        ui_base = Dummy()
+        ui_base._StickyDialog = Dummy
+    else:
+        raise
 orig_type = ui_base._StickyDialog
 
 
@@ -68,7 +78,7 @@ _destroyed_cbs = {}
 
 
 def _cb(cbs, *args, **kwargs):
-    for cb, userdata in cbs.iteritems():
+    for cb, userdata in cbs.items():
         if userdata is None:
             cb(*args, **kwargs)
         else:

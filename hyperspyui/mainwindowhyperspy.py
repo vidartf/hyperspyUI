@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -26,16 +26,23 @@ import gc
 import re
 import numpy as np
 import logging
+import warnings
+import traceback
+import sys
 
 # Hyperspy uses traitsui, set proper backend
 from traits.etsconfig.api import ETSConfig
-ETSConfig.toolkit = 'qt4'
+try:
+    ETSConfig.toolkit = 'qt4'
+except ValueError:
+    if 'sphinx' not in sys.modules:
+        raise
 
-from mainwindowlayer4 import MainWindowLayer4, tr
+from .mainwindowutillayer import MainWindowActionRecorder, tr
 
-import uiprogressbar
+from . import uiprogressbar
 uiprogressbar.takeover_progressbar()    # Enable hooks
-import hooksignal
+from . import hooksignal
 hooksignal.hook_signal()
 
 from python_qt_binding import QtGui, QtCore
@@ -52,13 +59,12 @@ import hyperspy.io
 import hyperspy.defaults_parser
 from hyperspy.io_plugins import io_plugins
 
-import overrides
+from . import overrides
 overrides.override_hyperspy()           # Enable hyperspy overrides
 
 
 glob_escape = re.compile(r'([\[\]])')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 
 class TrackEventFilter(QObject):
@@ -74,7 +80,7 @@ class TrackEventFilter(QObject):
         return False
 
 
-class MainWindowLayer5(MainWindowLayer4):
+class MainWindowHyperspy(MainWindowActionRecorder):
 
     """
     Fifth layer in the application stack. Should integrate hyperspy basics,
@@ -86,7 +92,7 @@ class MainWindowLayer5(MainWindowLayer4):
         # Setup signals list. This is a BindingList, and all components of the
         # code that needs to keep track of the signals loaded bind into this.
         self.signals = BindingList()
-        self.signals.add_custom(self.sweeper, None, None, None, self.sweeper,
+        self.signals.add_custom(self._sweeper, None, None, None, self._sweeper,
                                 None)
         self.hspy_signals = []
 
@@ -116,7 +122,7 @@ class MainWindowLayer5(MainWindowLayer4):
         self._plotting_signal = None
 
         # Call super init, which creates main controls etc.
-        super(MainWindowLayer5, self).__init__(parent)
+        super(MainWindowHyperspy, self).__init__(parent)
 
         self.create_statusbar()
 
@@ -142,11 +148,15 @@ class MainWindowLayer5(MainWindowLayer4):
         # Finish off hyperspy customization of layer 1
         self.setWindowTitle("HyperSpy")
 
-    def sweeper(self, removed):
+    def _sweeper(self, removed):
+        """
+        Trigger a GC one second after calling this.
+        """
         del removed
         QTimer.singleShot(1000, gc.collect)
 
     def create_widgetbar(self):
+        # Add DataViewWidget to widget bar:
         self.tree = DataViewWidget(self, self)
         self.tree.setWindowTitle(tr("Data View"))
         # Sync tree with signals list:
@@ -156,12 +166,12 @@ class MainWindowLayer5(MainWindowLayer4):
             self.tree.on_mdiwin_activated)
         self.add_widget(self.tree)
 
-        # Put plugin widgets at end
-        super(MainWindowLayer5, self).create_widgetbar()
+        # Put other widgets at end (plugin widgets)
+        super(MainWindowHyperspy, self).create_widgetbar()
 
     def create_menu(self):
         # Super creates Windows menu
-        super(MainWindowLayer5, self).create_menu()
+        super(MainWindowHyperspy, self).create_menu()
 
         # Add custom action to signals' BindingList, so appropriate menu items
         # are removed if a signal is removed from the list
@@ -199,26 +209,32 @@ class MainWindowLayer5(MainWindowLayer4):
             return
         s = hyperspyui.util.win2sig(mdi_window)
         if self.prev_mdi is not None:
-            ps = hyperspui.util.win2sig(self.prev_mdi)
+            ps = hyperspyui.util.win2sig(self.prev_mdi, self.signals)
         else:
             ps = None
         if s is not ps:
-            if ps is not None:
-                if ps.signal.axes_manager is not None:
-                    ps.signal.axes_manager.disconnect(self._on_active_navigate)
-            s.signal.axes_manager.connect(self._on_active_navigate)
-            self._on_active_navigate()
+            # If previous signal present, try to disconnect
+            if ps and ps.signal and ps.signal.axes_manager:
+                try:
+                    ps.signal.axes_manager.events.indices_changed.disconnect(
+                        self._on_active_navigate)
+                except ValueError:
+                    pass
+            if s and s.signal and s.signal.axes_manager:
+                try:
+                    s.signal.axes_manager.events.indices_changed.connect(
+                        self._on_active_navigate, {'obj': 'axes_manager'})
+                except ValueError:
+                    pass
+                self._on_active_navigate(s.signal.axes_manager)
+            self.prev_mdi = mdi_window
 
-    def _on_active_navigate(self):
+    def _on_active_navigate(self, axes_manager):
         """
         Callback triggered when the active signal navigates. Updates the
         status bar with the navigation indices.
         """
-        s = self.get_selected_signal()
-        if s is None:
-            ind = tuple()
-        else:
-            ind = s.axes_manager.indices
+        ind = axes_manager.indices
         self.set_navigator_coords_status(ind)
 
     def _on_track(self, gpos):
@@ -226,23 +242,17 @@ class MainWindowLayer5(MainWindowLayer4):
         Tracks the mouse position for the entire application, and if the mouse
         is over a figure axes it updates the status bar mouse coordinates.
         """
+
         # Find which window the mouse is above
         pos = self.mapFromGlobal(gpos)
         canvas = self.childAt(pos)
         # We only care about FigureCanvases
         if isinstance(canvas, FigureCanvas):
-            win = canvas.parent()
-            s = hyperspyui.util.win2sig(win, self.signals)
+            fig = canvas.figure
+            s, p = hyperspyui.util.fig2sig(fig, self.signals)
             # Currently we only know how to deal with standard plots
-            if s is None:
+            if p is None:
                 return
-        else:
-            return
-        # Currently we can only handle navigator or signal plots
-        if win is s.navigator_plot:
-            p = s.signal._plot.navigator_plot
-        elif win is s.signal_plot:
-            p = s.signal._plot.signal_plot
         else:
             return
         if p.ax is None:
@@ -266,10 +276,12 @@ class MainWindowLayer5(MainWindowLayer4):
             return a.value2index(v)
 
         if hasattr(p, 'axis'):                              # SpectrumFigure
-            if win is s.navigator_plot:
+            if p is s.signal._plot.navigator_plot:
                 axis = p.axes_manager.navigation_axes[0]
-            elif win is s.signal_plot:
+            elif p is s.signal._plot.signal_plot:
                 axis = p.axes_manager.signal_axes[0]
+            else:
+                return
             vals = (xd,)
             ind = (v2i(axis, xd),)
             units = [axis.units]
@@ -282,8 +294,8 @@ class MainWindowLayer5(MainWindowLayer4):
             intensity = p.ax.images[0].get_array()[ind[1], ind[0]]
 
         # Remove <undefined> units
-        for i in xrange(len(units)):
-            if unicode(units[i]) == u"<undefined>":
+        for i in range(len(units)):
+            if str(units[i]) == "<undefined>":
                 units[i] = ""
         units = tuple(units)
 
@@ -302,7 +314,7 @@ class MainWindowLayer5(MainWindowLayer4):
 
         'units' must be the same size as 'values'
         """
-        vu = tuple([u"%.3g %s" % (v, u) for v, u in zip(values, units)])
+        vu = tuple(["%.3g %s" % (v, u) for v, u in zip(values, units)])
         vu = "(%s)" % ", ".join(vu)
         text = "Mouse: " + str(indices) + " px; " + vu
         if intensity is not None:
@@ -313,7 +325,7 @@ class MainWindowLayer5(MainWindowLayer4):
                 text += "%.3g" % intensity
         self.mouse_coords_label.setText(text)
 
-    def add_model(self, signal, *args, **kwargs):
+    def add_model(self, signal=None, *args, **kwargs):
         """
         Add a default model for the given/selected signal. Returns the
         newly created ModelWrapper.
@@ -326,16 +338,13 @@ class MainWindowLayer5(MainWindowLayer4):
         mw = signal.make_model(*args, **kwargs)
         return mw
 
-    def make_model(self, signal=None, *args, **kwargs):
-        """
-        Same as add_model(), but returns the hyperspy.Model instead of the
-        wrapper. Useful as replacement for hyperspy code in console.
-        """
-        mw = self.add_model(signal, *args, **kwargs)
-        return mw.model
-
     def make_component(self, comp_type):
         m = self.get_selected_model_wrapper()
+        if m is None:
+            sw = self.get_selected_wrapper()
+            if sw is None:
+                return
+            m = self.add_model(signal=sw)
         m.add_component(comp_type)
 
     def edit_hspy_settings(self):
@@ -465,16 +474,6 @@ class MainWindowLayer5(MainWindowLayer4):
                           for extensions in plugin.file_extensions])
         return extensions
 
-    def prompt_files(self, extension_filter=None):
-        filenames = QFileDialog.getOpenFileNames(self,
-                                                 tr('Load file'),
-                                                 self.cur_dir,
-                                                 extension_filter)
-        # Pyside returns tuple, PyQt not
-        if isinstance(filenames, tuple):
-            filenames = filenames[0]
-        return filenames
-
     def load_stack(self, filenames=None, stack_axis=None):
         if filenames is None:
             extensions = self.get_accepted_extensions()
@@ -494,6 +493,8 @@ class MainWindowLayer5(MainWindowLayer4):
                 s.plot()
         else:
             sig.plot()
+        self.record_code('ui.load_stack({0}, {1})'.format(filenames,
+                                                          stack_axis))
 
     def load(self, filenames=None):
         """
@@ -520,6 +521,7 @@ class MainWindowLayer5(MainWindowLayer4):
                 e = EditorWidget(self, self, filename)
                 self.editors.append(e)
                 e.show()
+                files_loaded.append(filename)
                 continue
             self.setUpdatesEnabled(False)   # Prevent flickering during load
             try:
@@ -531,8 +533,14 @@ class MainWindowLayer5(MainWindowLayer4):
                 else:
                     sig.plot()
                 files_loaded.append(filename)
-            except (IOError, ValueError):
+            except (IOError, ValueError) as e:
                 self.set_status("Failed to load \"" + filename + "\"")
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                tb = traceback.extract_tb(exc_traceback)[-1]
+                warnings.warn_explicit(
+                    ("Failed to load file '%s'. Internal exception:\n %s: %s"
+                     % (filename, exc_type.__name__, str(e))),
+                    RuntimeWarning, tb[0], tb[1])
             finally:
                 self.setUpdatesEnabled(True)    # Always resume updates!
 
@@ -540,8 +548,7 @@ class MainWindowLayer5(MainWindowLayer4):
             self.set_status("Loaded \"" + files_loaded[0] + "\"")
         elif len(files_loaded) > 1:
             self.set_status("Loaded %d files" % len(files_loaded))
-        for r in self.recorders:
-            r.add_code('ui.load({0})'.format(files_loaded))
+        self.record_code('ui.load({0})'.format(files_loaded))
 
         return files_loaded
 
@@ -569,10 +576,8 @@ class MainWindowLayer5(MainWindowLayer4):
                 path_suggestion = self.get_signal_filepath_suggestion(s)
                 logger.debug("No filenames passed. Auto-suggestion: %s",
                              path_suggestion)
-                filename = QFileDialog.getSaveFileName(self, tr("Save file"),
-                                                       path_suggestion,
-                                                       type_choices,
-                                                       "All types (*.*)")[0]
+                filename = self.prompt_files(type_choices, path_suggestion,
+                                             False)
                 # Dialog should have prompted about overwrite
                 overwrite = True
                 if not filename:
@@ -684,26 +689,26 @@ class MainWindowLayer5(MainWindowLayer4):
     # --------- Console functions ----------
 
     def on_console_executing(self, source):
-        super(MainWindowLayer5, self).on_console_executing(source)
+        super(MainWindowHyperspy, self).on_console_executing(source)
 #        self.setUpdatesEnabled(False)
         for s in self.signals:
             s.keep_on_close = True
 
     def on_console_executed(self, response):
-        super(MainWindowLayer5, self).on_console_executed(response)
+        super(MainWindowHyperspy, self).on_console_executed(response)
         for s in self.signals:
             s.update_figures()
             s.keep_on_close = False
 #        self.setUpdatesEnabled(True)
 
     def _get_console_exec(self):
-        ex = super(MainWindowLayer5, self)._get_console_exec()
+        ex = super(MainWindowHyperspy, self)._get_console_exec()
         ex += '\nimport hyperspy.api as hs'
         ex += '\nimport numpy as np'
         return ex
 
     def _get_console_exports(self):
-        push = super(MainWindowLayer5, self)._get_console_exports()
+        push = super(MainWindowHyperspy, self)._get_console_exports()
         push['siglist'] = self.hspy_signals
         return push
 

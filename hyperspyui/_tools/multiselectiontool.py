@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -22,13 +22,11 @@ Created on Mon Aug 03 19:43:52 2015
 """
 
 from python_qt_binding import QtCore
-import os
 
 from hyperspy.signal import Signal
-from hyperspy.drawing.widgets import ResizableDraggableRectangle, \
-    DraggableResizableRange, DraggableSquare, DraggableVerticalLine
-from hyperspy.roi import RectangularROI, SpanROI, \
-    Point1DROI, Point2DROI
+from hyperspy.drawing.widgets import (RectangleWidget, RangeWidget,
+                                      SquareWidget, VerticalLineWidget)
+from hyperspy.roi import RectangularROI, SpanROI, Point1DROI, Point2DROI
 
 from hyperspyui.tools import SignalFigureTool
 from hyperspyui.util import crosshair_cursor
@@ -87,14 +85,14 @@ class MultiSelectionTool(SignalFigureTool):
             return None
         if self.ndim(signal) == 1:
             if self.ranged:
-                w = DraggableResizableRange(None)
+                w = RangeWidget(None)
             else:
-                w = DraggableVerticalLine(None)
+                w = VerticalLineWidget(None)
         else:
             if self.ranged:
-                w = ResizableDraggableRectangle(None)
+                w = RectangleWidget(None)
             else:
-                w = DraggableSquare(None)
+                w = SquareWidget(None)
         if signal in self.widgets:
             self.widgets[signal].append(w)
         else:
@@ -106,7 +104,7 @@ class MultiSelectionTool(SignalFigureTool):
         if widget.is_on():
             widget.set_on(False)
         if signal is None:
-            for widgets in self.widgets.itervalues():
+            for widgets in self.widgets.values():
                 if widget in widgets:
                     widgets.remove(widget)
         else:
@@ -143,7 +141,7 @@ class MultiSelectionTool(SignalFigureTool):
 
         s = self._get_signal(event.inaxes.figure)
         for w in self.widgets[s]:
-            if w.patch.contains(event)[0] == True:
+            if any([p.contains(event)[0] == True for p in w.patch]):
                 self._remove_widget(w, s)
                 self._on_change(w, s)
 
@@ -175,7 +173,7 @@ class MultiSelectionTool(SignalFigureTool):
         # If we already have widgets, make sure editing is passed through
         if self.have_selection(s):
             for w in self.widgets[s]:
-                if w.patch.contains(event)[0] == True:
+                if any([p.contains(event)[0] == True for p in w.patch]):
                     return              # Moving, handle in widget
             # Clicked outside existing widget, check for resize handles
             if self.ndim(s) > 1:
@@ -197,8 +195,8 @@ class MultiSelectionTool(SignalFigureTool):
         widget.axes = axes
         widget.set_mpl_ax(event.inaxes)  # connects
         if self.ndim(s) == 1:
-            widget.coordinates = (x,)
-            widget.size = 1
+            widget.position = (x,)
+            widget.size = axes[0].scale
             widget.set_on(True)
             if self.ranged:
                 span = widget.span
@@ -209,13 +207,13 @@ class MultiSelectionTool(SignalFigureTool):
             else:
                 widget.picked = True
         else:
-            widget.coordinates = (x, y)
-            widget.size = (1, 1)
+            widget.position = (x, y)
+            widget.size = [ax.scale for ax in axes]
             widget.set_on(True)
             if self.ranged:
-                widget.pick_on_frame = 3
+                widget.resizer_picked = 3
             widget.picked = True
-        widget.events.changed.connect(self._on_change, 1)
+        widget.events.changed.connect(self._on_change, {'obj': 'widget'})
 
     def _get_rois(self, signal):
         rois = []
@@ -239,7 +237,7 @@ class MultiSelectionTool(SignalFigureTool):
 
     def _on_change(self, widget, signal=None):
         if signal is None:
-            for s, widgets in self.widgets.iteritems():
+            for s, widgets in self.widgets.items():
                 if widget in widgets:
                     signal = s
                     break
@@ -268,7 +266,7 @@ class MultiSelectionTool(SignalFigureTool):
 
     def cancel(self, signal=None):
         if signal is None:
-            signals = self.widgets.keys()
+            signals = list(self.widgets.keys())
         else:
             signals = [signal]
         for s in signals:

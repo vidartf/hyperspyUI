@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -34,12 +34,11 @@ from python_qt_binding import QtGui, QtCore
 from QtCore import *
 from QtGui import *
 
-from widgets.consolewidget import ConsoleWidget
+from .widgets.consolewidget import ConsoleWidget
 import hyperspyui.mdi_mpl_backend
-from pluginmanager import PluginManager
+from .pluginmanager import PluginManager
 from hyperspyui.settings import Settings
 from hyperspyui.widgets.settingsdialog import SettingsDialog
-from hyperspyui.smartcolorsvgiconengine import SmartColorSVGIconEngine
 
 
 def tr(text):
@@ -58,7 +57,7 @@ def lowpriority():
             import win32process
             import win32con
         except ImportError as e:
-            warnings.warn("Could not set process priority: %s" % e.message)
+            warnings.warn("Could not set process priority: %s" % e)
             return
 
         pid = win32api.GetCurrentProcessId()
@@ -83,7 +82,7 @@ def normalpriority():
             import win32process
             import win32con
         except ImportError as e:
-            warnings.warn("Could not set process priority: %s" % e.message)
+            warnings.warn("Could not set process priority: %s" % e)
             return
 
         pid = win32api.GetCurrentProcessId()
@@ -97,7 +96,7 @@ def normalpriority():
         os.nice(-os.nice(0))
 
 
-class MainWindowLayer1(QMainWindow):
+class MainWindowBase(QMainWindow):
 
     """
     Base layer in application stack. Should handle the connection to our custom
@@ -108,19 +107,19 @@ class MainWindowLayer1(QMainWindow):
     """
 
     def __init__(self, parent=None):
-        super(MainWindowLayer1, self).__init__(parent)
+        super(MainWindowBase, self).__init__(parent)
 
         # Setup settings:
         self.settings = Settings(self, 'General')
         # Default setting values:
-        self.settings.set_default('toolbar_button_size', 32)
+        self.settings.set_default('toolbar_button_size', 24)
         self.settings.set_default('default_widget_floating', False)
         self.settings.set_default('working_directory', "")
         self.settings.set_default('low_process_priority', False)
         # Override any possible invalid stored values, which could prevent load
         if 'toolbar_button_size' not in self.settings or \
                 not isinstance(self.settings['toolbar_button_size'], int):
-            self.settings['toolbar_button_size'] = 32
+            self.settings['toolbar_button_size'] = 24
         if self.low_process_priority:
             lowpriority()
 
@@ -165,7 +164,7 @@ class MainWindowLayer1(QMainWindow):
 
     @property
     def toolbar_button_size(self):
-        return int(self.settings['toolbar_button_size'])
+        return self.settings['toolbar_button_size', int]
 
     @toolbar_button_size.setter
     def toolbar_button_size(self, value):
@@ -183,7 +182,7 @@ class MainWindowLayer1(QMainWindow):
 
     @property
     def low_process_priority(self):
-        return "true" == self.settings['low_process_priority'].lower()
+        return self.settings['low_process_priority', bool]
 
     @low_process_priority.setter
     def low_process_priority(self, value):
@@ -206,7 +205,7 @@ class MainWindowLayer1(QMainWindow):
     def closeEvent(self, event):
         self.settings['_geometry'] = self.saveGeometry()
         self.settings['_windowState'] = self.saveState()
-        return super(MainWindowLayer1, self).closeEvent(event)
+        return super(MainWindowBase, self).closeEvent(event)
 
     def reset_geometry(self):
         self.settings.restore_key_default('_geometry')
@@ -254,6 +253,15 @@ class MainWindowLayer1(QMainWindow):
         self.selectable_tools = QActionGroup(self)
         self.selectable_tools.setExclusive(True)
 
+        # Nested docking action
+        ac_nested = QAction(tr("Nested docking"), self)
+        ac_nested.setStatusTip(tr("Allow nested widget docking"))
+        ac_nested.setCheckable(True)
+        ac_nested.setChecked(self.isDockNestingEnabled())
+        self.connect(ac_nested, SIGNAL('triggered(bool)'),
+                     self.setDockNestingEnabled)
+        self.actions['nested_docking'] = ac_nested
+
         # Tile windows action
         ac_tile = QAction(tr("Tile"), self)
         ac_tile.setStatusTip(tr("Arranges all figures in a tile pattern"))
@@ -289,6 +297,7 @@ class MainWindowLayer1(QMainWindow):
         # Window menu is filled in add_widget and add_figure
         self.windowmenu = mb.addMenu(tr("&Windows"))
         self.windowmenu.addAction(self._console_dock.toggleViewAction())
+        self.windowmenu.addAction(self.actions['nested_docking'])
         # Figure windows go below this separator. Other windows can be added
         # above it with insertAction(self.windowmenu_sep, QAction)
         self.windowmenu_sep = self.windowmenu.addSeparator()
@@ -345,7 +354,7 @@ class MainWindowLayer1(QMainWindow):
                 self.active_tool.disconnect_windows(self.figures)
             except Exception as e:
                 warnings.warn("Exception disabling tool %s: %s" % (
-                    self.active_tool.get_name(), e.message))
+                    self.active_tool.get_name(), e))
         self.active_tool = tool
         tool.connect_windows(self.figures)
 
@@ -390,84 +399,11 @@ class MainWindowLayer1(QMainWindow):
     def check_action_selections(self, mdi_figure=None):
         if mdi_figure is None:
             mdi_figure = self.main_frame.activeSubWindow()
-        for key, cb in self._action_selection_cbs.iteritems():
+        for key, cb in self._action_selection_cbs.items():
             cb(mdi_figure, self.actions[key])
 
     # --------- End figure management ---------
 
-    # --------- UI utility finctions ---------
-
-    def make_icon(self, icon):
-        if not isinstance(icon, QIcon):
-            if isinstance(icon, basestring) and not os.path.isfile(icon):
-                sugg = os.path.dirname(__file__) + '/images/' + icon
-                if os.path.isfile(sugg):
-                    icon = sugg
-            if isinstance(icon, basestring) and (
-                    icon.endswith('svg') or
-                    icon.endswith('svgz') or
-                    icon.endswith('svg.gz')):
-                ie = SmartColorSVGIconEngine()
-                path = icon
-                icon = QIcon(ie)
-                icon.addFile(path)
-            else:
-                icon = QIcon(icon)
-        else:
-            icon = QIcon(SmartColorSVGIconEngine(icon))
-        return icon
-
-    def get_figure_filepath_suggestion(self, figure, deault_ext=None):
-        canvas = figure.widget()
-        if deault_ext is None:
-            deault_ext = canvas.get_default_filetype()
-
-        f = canvas.get_default_filename()
-        if not f:
-            f = self.cur_dir
-
-        # Analyze suggested filename
-        base, tail = os.path.split(f)
-        fn, ext = os.path.splitext(tail)
-
-        # If no directory in filename, use self.cur_dir's dirname
-        if base is None or base == "":
-            base = os.path.dirname(self.cur_dir)
-        # If extension is not valid, use the defualt
-        if ext not in canvas.get_supported_filetypes():
-            ext = deault_ext
-
-        # Build suggestion and return
-        path_suggestion = os.path.sep.join((base, fn))
-        path_suggestion = os.path.extsep.join((path_suggestion, ext))
-        return path_suggestion
-
-    def save_figure(self, figure=None):
-        if figure is None:
-            figure = self.main_frame.activeSubWindow()
-            if figure is None:
-                return
-        path_suggestion = self.get_figure_filepath_suggestion(figure)
-        canvas = figure.widget()
-
-        # Build type selection string
-        def_type = os.path.extsep + canvas.get_default_filetype()
-        extensions = canvas.get_supported_filetypes_grouped()
-        type_choices = u"All types (*.*)"
-        for group, exts in extensions.iteritems():
-            fmt = group + \
-                ' (' + \
-                '; '.join([os.path.extsep + sube for sube in exts]) + ')'
-            type_choices = ';;'.join((type_choices, fmt))
-            if def_type[1:] in exts:
-                def_type = fmt
-
-        # Present filename prompt
-        filename = QFileDialog.getSaveFileName(self, tr("Save file"),
-                                               path_suggestion, type_choices,
-                                               def_type)[0]
-        if filename:
-            canvas.figure.savefig(filename)
 
     # --------- Console functions ---------
 
@@ -498,7 +434,14 @@ class MainWindowLayer1(QMainWindow):
         # and then drop route when it finishes, however this will not catch
         # interactive dialogs and such.
         c = self._get_console_config()
-        control = ConsoleWidget(config=c)
+        self.settings.set_default('console_completion_type', 'droplist')
+        valid_completions = ConsoleWidget.gui_completion.values
+        self.settings.set_enum_hint('console_completion_type',
+                                    valid_completions)
+        gui_completion = self.settings['console_completion_type']
+        if gui_completion not in valid_completions:
+            gui_completion = 'droplist'
+        control = ConsoleWidget(config=c, gui_completion=gui_completion)
         control.executing.connect(self.on_console_executing)
         control.executed.connect(self.on_console_executed)
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -23,7 +23,7 @@ Created on Sun Dec 07 02:03:23 2014
 
 import os
 
-from figuretool import FigureTool
+from .figuretool import FigureTool
 from hyperspyui.util import load_cursor
 
 
@@ -39,7 +39,7 @@ class ZoomPanTool(FigureTool):
         return "Pan/Zoom tool"
 
     def get_category(self):
-        return 'Navigation'
+        return 'Plot'
 
     def get_icon(self):
         return os.path.dirname(__file__) + '/../images/panzoom2.svg'

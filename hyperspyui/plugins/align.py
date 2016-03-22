@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -55,17 +55,17 @@ class AlignPlugin(Plugin):
                             hyperspy.signals.Image, self.ui))
 
     def create_menu(self):
-        self.add_menuitem("Align", self.ui.actions['manual_align'])
+        self.add_menuitem("Signal", self.ui.actions['manual_align'])
 
     def create_toolbars(self):
-        self.add_toolbar_button("Align", self.ui.actions['manual_align'])
+        self.add_toolbar_button("Signal", self.ui.actions['manual_align'])
 
     def create_tools(self):
         tools = []
 
         # XD tool
         self.tool_XD = SelectionTool(
-            name='Align tool', icon="align2d.svg", category="Align",
+            name='Align tool', icon="align2d.svg", category="Signal",
             description="Align images across the stack")
         self.tool_XD.accepted[BaseInteractiveROI].connect(
             self.align_XD)
@@ -75,7 +75,7 @@ class AlignPlugin(Plugin):
         # Vertical 2D align
         self.tool_vertical = SelectionTool(
             name='Align vertical tool', icon="align_vertical.svg",
-            category="Align",
+            category="Signal",
             description="Align an image feature vertically across the stack")
         self.tool_vertical.accepted[BaseInteractiveROI].connect(
             self.align_vertical)
@@ -85,7 +85,7 @@ class AlignPlugin(Plugin):
         # Vertical 2D align
         self.tool_horizontal = SelectionTool(
             name='Align horizontal tool', icon="align_horizontal.svg",
-            category="Align",
+            category="Signal",
             description="Align an image feature horizontally across the stack")
         self.tool_horizontal.accepted[BaseInteractiveROI].connect(
             self.align_horizontal)
@@ -139,6 +139,11 @@ class AlignPlugin(Plugin):
         s_aligned = signal.deepcopy()
         s_aligned.align1D(shifts=shifts, expand=True)
         s_aligned.plot()
+        self.record_code("signal = ui.get_selected_signal()")
+        self.record_code("s_aligned = signal.deepcopy()")
+        self.record_code("s_aligned.align1D(reference='current', "
+                         "roi=(%f, %f), show_progressbar=True, expand=True)" %
+                         (roi.left, roi.right))
         return s_aligned
 
     def align_2D(self, roi, signal=None):
@@ -146,23 +151,29 @@ class AlignPlugin(Plugin):
         if signal is None:
             return
         s = signal
-        sobel = 'true' == self.settings['sobel_2D'].lower()
-        hanning = 'true' == self.settings['hanning_2D'].lower()
-        median = 'true' == self.settings['median_2D'].lower()
-        sub_pixel_factor = float(self.settings['sub_pixel_factor'])
-        plot = 'true' == self.settings['plot'].lower()
+        sobel = self.settings['sobel_2D', bool]
+        hanning = self.settings['hanning_2D', bool]
+        median = self.settings['median_2D', bool]
+        sub_pixel_factor = self.settings['sub_pixel_factor', float]
+        plot = self.settings['plot', bool]
         if plot:
             plot = 'reuse'
         ref = self.settings['alignment_reference'].lower()
         if not ref:
             ref = 'current'
-        expand = 'true' == self.settings['expand'].lower()
-        crop = 'true' == self.settings['crop'].lower()
-        gauss = float(self.settings['2d_smooth_amount'])
+        expand = self.settings['expand', bool]
+        crop = self.settings['crop', bool]
+        gauss = self.settings['2d_smooth_amount', float]
         if gauss > 0.0 and 'Gaussian Filter' in self.ui.plugins:
             p = self.ui.plugins['Gaussian Filter']
             s = p.gaussian(sigma=gauss, signal=signal, record=False)
             s.axes_manager.indices = signal.axes_manager.indices
+        record_string = (
+            "reference={0}, sobel={1}, hanning={2}, medfilter={3},"
+            "roi=({4}, {5}, {6}, {7}), plot={8},"
+            "show_progressbar=True").format(
+                ref, sobel, hanning, median, roi.left, roi.right, roi.top,
+                roi.bottom, plot)
         try:
             shifts = s.estimate_shift2D(
                 reference=ref,
@@ -171,6 +182,7 @@ class AlignPlugin(Plugin):
                 sub_pixel_factor=sub_pixel_factor,
                 plot=plot,
                 show_progressbar=True)
+            record_string += ", sub_pixel_factor=" + str(sub_pixel_factor)
         except TypeError:
             # Hyperspy might not accept 'sub_pixel_factor'
             shifts = s.estimate_shift2D(
@@ -181,19 +193,25 @@ class AlignPlugin(Plugin):
                 show_progressbar=True)
         s_aligned = signal.deepcopy()
         s_aligned.align2D(shifts=shifts, crop=crop, expand=expand)
+        record_string += ", crop={0}, expand={1}".format(crop, expand)
         s_aligned.plot()
+        self.record_code("signal = ui.get_selected_signal()")
+        self.record_code("s_aligned = signal.deepcopy()")
+        self.record_code("s_aligned.align1D(%s)" % record_string)
         return s_aligned
 
     def align_vertical(self, roi, signal=None):
         signal = self._get_signal(signal)
         if signal is None:
             return
+        self.record_code("<p>.align_vertical(roi=%s)" % repr(roi))
         return self._align_along_axis(roi, signal, axis=1)
 
     def align_horizontal(self, roi, signal=None):
         signal = self._get_signal(signal)
         if signal is None:
             return
+        self.record_code("<p>.align_vertical(roi=%s)" % repr(roi))
         return self._align_along_axis(roi, signal, axis=0)
 
     def _align_along_axis(self, roi, signal, axis):
@@ -207,9 +225,9 @@ class AlignPlugin(Plugin):
         if s_al.axes_manager.signal_axes[0].index_in_array < 1:
             s_al.data = s_al.data.T             # Unfolded, so simply transpose
         # From now on, navigation is in first dimension
-        smooth = float(self.settings['1d_smooth_amount'])
+        smooth = self.settings['1d_smooth_amount', float]
         d = np.array([self._smooth(s_al.data[i, :], smooth)
-                      for i in xrange(s_al.data.shape[0])])
+                      for i in range(s_al.data.shape[0])])
         d = np.diff(d, axis=1)      # Differentiate to highlight edges
         sz = d.shape                # Initial shape
         ref = d[iref, :]               # Reference row
@@ -217,7 +235,7 @@ class AlignPlugin(Plugin):
         ref = np.pad(ref, (sz[1] / 2, sz[1] / 2), 'edge')
         shifts = []
         # Find shifts for each row
-        for row in xrange(sz[0]):
+        for row in range(sz[0]):
             if row == iref:
                 # Set shift of reference to compensate for padding
                 shifts.append(sz[1] / 2)
@@ -261,6 +279,12 @@ class ManualAlignDialog(ExToolWindow):
             with signal.unfolded(unfold_signal=False):
                 signal.align2D(shifts=self.shifts, expand=True)
             signal.get_dimensions_from_data()
+        rc = self.ui.record_code
+        rc("signal = ui.get_selected_signal()")
+        rc("shifts = np.array(%s)" % str(self.shifts.tolist()))
+        rc("with signal.unfolded(unfold_signal=False):")
+        rc("    signal.align2D(shifts=shifts, expand=True)")
+        rc("signal.get_dimensions_from_data()")
 
     def cancel(self):
         signal = self.signal

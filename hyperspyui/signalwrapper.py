@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -21,11 +21,11 @@ Created on Fri Oct 24 18:27:15 2014
 @author: Vidar Tonaas Fauske
 """
 
-from util import fig2win
+from .util import fig2win
 from python_qt_binding import QtCore
 
-from modelwrapper import ModelWrapper
-from actionable import Actionable
+from .modelwrapper import ModelWrapper
+from .actionable import Actionable
 
 
 class SignalWrapper(Actionable):
@@ -219,6 +219,8 @@ class SignalWrapper(Actionable):
 
     def make_model(self, *args, **kwargs):
         m = self.signal.create_model(*args, **kwargs)
+        self.mainwindow.record_code("signal = ui.get_selected_signal()")
+        self.mainwindow.record_code("model = signal.create_model()")
 #        modelname = self.signal.metadata.General.title
         modelname = "Model %d" % self._model_id
         self._model_id += 1

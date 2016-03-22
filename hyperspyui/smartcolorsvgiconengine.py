@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -39,7 +39,7 @@ class SmartColorSVGIconEngine(QIconEngineV2):
     not be fully tested for yet.
     """
 
-    serial_gen = 0L
+    serial_gen = 0
 
     def __init__(self, use_qt_disabled=False, other=None):
         if other:
@@ -75,16 +75,16 @@ class SmartColorSVGIconEngine(QIconEngineV2):
                                             QPalette.Window)
         self._automatic_color_replacements = {
             'default': {
-                '#000000': foreground.name(),
-                'black': foreground.name(),
-                '#ffffff': background.name(),
-                'white': background.name(),
+                b'#000000': foreground.name().encode('ascii'),
+                b'black': foreground.name().encode('ascii'),
+                b'#ffffff': background.name().encode('ascii'),
+                b'white': background.name().encode('ascii'),
                 },
             'disabled': {
-                '#000000': disabled_foreground.name(),
-                'black': disabled_foreground.name(),
-                '#ffffff': disabled_background.name(),
-                'white': disabled_background.name(),
+                b'#000000': disabled_foreground.name().encode('ascii'),
+                b'black': disabled_foreground.name().encode('ascii'),
+                b'#ffffff': disabled_background.name().encode('ascii'),
+                b'white': disabled_background.name().encode('ascii'),
                 }
             }
         self._palette_key = palette.cacheKey()
@@ -103,10 +103,10 @@ class SmartColorSVGIconEngine(QIconEngineV2):
         f_low = filename.lower()
         if f_low.endswith('.svgz') or f_low.endswith('.svg.gz'):
             import gzip
-            with gzip.open(filename, 'r') as svg_file:
+            with gzip.open(filename, 'rb') as svg_file:
                 svg_cnt = svg_file.read()
         else:
-            with open(filename, 'r') as svg_file:
+            with open(filename, 'rb') as svg_file:
                 svg_cnt = svg_file.read()
 
         # Merge automatic and custom LUTs
@@ -116,7 +116,7 @@ class SmartColorSVGIconEngine(QIconEngineV2):
             color_key = 'default'
 
         # Perform replacement according to correct table
-        for old, new in color_table[color_key].iteritems():
+        for old, new in color_table[color_key].items():
             re_exp = re.compile(re.escape(old), re.IGNORECASE)
             svg_cnt = re_exp.sub(new, svg_cnt)
         out = QByteArray(svg_cnt)
@@ -236,20 +236,20 @@ class SmartColorSVGIconEngine(QIconEngineV2):
         if ds_in.version() >= QDataStream.Qt_4_4:
             nfiles = ds_in.readInt()
             fileNames = {}
-            for i in xrange(nfiles):
+            for i in range(nfiles):
                 fileNames[i] = ds_in.readString()
             isCompressed = ds_in.readBool()
             key = ds_in.readInt()
             self._svgBuffers[key] = QByteArray()
             ds_in >> self._svgBuffers[key]
             if not isCompressed:
-                for key, v in self._svgBuffers.iteritems():
+                for key, v in self._svgBuffers.items():
                     self._svgBuffers[key] = qCompress(v)
             hasAddedPixmaps = ds_in.readInt()
             if hasAddedPixmaps:
                 npixmaps = ds_in.readInt()
                 self._addedPixmaps = {}
-                for i in xrange(npixmaps):
+                for i in range(npixmaps):
                     pm = QPixmap()
                     ds_in >> pm
                     self._addedPixmaps[i] = pm
@@ -263,7 +263,7 @@ class SmartColorSVGIconEngine(QIconEngineV2):
                 if not data.isEmpty():
                     self._svgBuffers[self.default_key] = data
             num_entries = ds_in.readInt()
-            for i in xrange(num_entries):
+            for i in range(num_entries):
                 if ds_in.atEnd():
                     return False
                 ds_in >> pixmap
@@ -281,7 +281,7 @@ class SmartColorSVGIconEngine(QIconEngineV2):
                 svgBuffers = self._svgBuffers
             else:
                 svgBuffers = {}     # QHash<int, QByteArray>
-            for key, v in self._svgFiles.iteritems():
+            for key, v in self._svgFiles.items():
                 buf = QByteArray()
                 f = QFile(v)
                 if f.open(QIODevice.ReadOnly):

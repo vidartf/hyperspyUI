@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -25,7 +25,7 @@ from python_qt_binding import QtGui, QtCore
 from QtCore import *
 from QtGui import *
 
-from widgets.extendedqwidgets import ExRememberPrompt
+from hyperspyui.widgets.extendedqwidgets import ExRememberPrompt
 
 
 class Settings(object):
@@ -50,10 +50,15 @@ class Settings(object):
         if key not in self:
             groupings.insert(0, 'defaults')
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
-        ret = settings.value(key, t)
+        ret = settings.value(key)
+        if t and isinstance(t, type):
+            if t is bool:
+                ret = ("true" == ret.lower())
+            else:
+                ret = t(ret)
         for g in groupings:
             settings.endGroup()
         return ret
@@ -61,7 +66,7 @@ class Settings(object):
     def __setitem__(self, key, value):
         groupings = self._get_groups(key)
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         settings.setValue(key, value)
@@ -71,7 +76,7 @@ class Settings(object):
     def __contains__(self, key):
         groupings = self._get_groups(key)
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         r = settings.contains(key)
@@ -80,7 +85,7 @@ class Settings(object):
         return r
 
     def __iter__(self):
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         settings.beginGroup(self.group)
         keys = settings.allKeys()
         for k in keys:
@@ -121,7 +126,7 @@ class Settings(object):
         groupings = self._get_groups(key)
         groupings.insert(0, 'defaults')
         inner_key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         default_value = settings.value(inner_key)
@@ -141,12 +146,47 @@ class Settings(object):
         groupings = self._get_groups(key)
         groupings.insert(0, 'defaults')
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         settings.setValue(key, value)
         for g in groupings:
             settings.endGroup()
+
+    def set_enum_hint(self, key, options):
+        """
+        Indicate possible values for a setting.
+
+        The `options` are not strictly enforced, but can be used to indicate
+        valid values to the user. A typical usecase is to allow the use of a
+        combobox in a dialog to pick a value.
+        """
+        groupings = self._get_groups(key)
+        groupings.insert(0, 'defaults')
+        key = groupings.pop()
+        key = '_' + key + '_options'    # Change key to avoid conflicts
+        settings = QSettings(parent=self.parent)
+        for g in groupings:
+            settings.beginGroup(g)
+        settings.setValue(key, options)
+        for g in groupings:
+            settings.endGroup()
+
+    def get_enum_hint(self, key):
+        """
+        Returns the enum hint if set, otherwise None.
+        """
+        groupings = self._get_groups(key)
+        groupings.insert(0, 'defaults')
+        key = groupings.pop()
+        key = '_' + key + '_options'    # Change key to avoid conflicts
+        settings = QSettings(parent=self.parent)
+        for g in groupings:
+            settings.beginGroup(g)
+        value = settings.value(key)
+        for g in groupings:
+            settings.endGroup()
+        return value
 
     def get_or_prompt(self, key, options, title="Prompt", descr=""):
         """
@@ -194,7 +234,7 @@ class Settings(object):
         if group is not None:
             settings.beginGroup(group)
 
-        for k, v in d.iteritems():
+        for k, v in d.items():
             settings.setValue(k, v)
 
         if group is not None:
@@ -206,7 +246,7 @@ class Settings(object):
         if group is not None:
             settings.beginGroup(group)
 
-        for k, v in d.iteritems():
+        for k, v in d.items():
             if isinstance(v, tuple):
                 settings.value(k, v)
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -27,7 +27,7 @@ from QtGui import *
 
 from functools import partial
 from hyperspyui._elements import elements
-from extendedqwidgets import ExClickLabel
+from .extendedqwidgets import ExClickLabel
 
 
 def tr(text):
@@ -75,7 +75,7 @@ class PeriodicTableWidget(QWidget):
         self.set_element(element, not self.toggled[element])
 
     def set_elements(self, elements):
-        for e in self.elements.iterkeys():
+        for e in self.elements.keys():
             self.set_element(e, e in elements)
 
     def set_element(self, element, value):

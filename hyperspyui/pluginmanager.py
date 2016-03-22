@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -23,13 +23,14 @@ Created on Sat Dec 13 00:41:15 2014
 
 import os
 import sys
-import imp
+import importlib
 import glob
 import warnings
 import traceback
 
 from hyperspyui.plugins.plugin import Plugin
 from hyperspyui.settings import Settings
+from hyperspyui.util import AttributeDict
 
 
 class ReadOnlyDict(dict):
@@ -64,7 +65,7 @@ class PluginManager(object):
         """
         Initializates the manager, and performs discovery of plugins
         """
-        self.plugins = {}
+        self.plugins = AttributeDict()
         self.ui = main_window
         self._enabled = {}
         self.settings = Settings(self.ui, group="General")
@@ -79,7 +80,7 @@ class PluginManager(object):
         of all plugins.
         """
         d = ReadOnlyDict()
-        for name, (enabled, _) in d.iteritems():
+        for name, (enabled, _) in d.items():
             d[name] = enabled
         d._readonly = True
         return d
@@ -158,35 +159,35 @@ class PluginManager(object):
                 self.warn("initialization", plug_type.name)
 
     def create_actions(self):
-        for p in self.plugins.itervalues():
+        for p in self.plugins.values():
             try:
                 p.create_actions()
             except Exception:
                 self.warn(sys._getframe().f_code.co_name, p.name)
 
     def create_menu(self):
-        for p in self.plugins.itervalues():
+        for p in self.plugins.values():
             try:
                 p.create_menu()
             except Exception:
                 self.warn(sys._getframe().f_code.co_name, p.name)
 
     def create_tools(self):
-        for p in self.plugins.itervalues():
+        for p in self.plugins.values():
             try:
                 p.create_tools()
             except Exception:
                 self.warn(sys._getframe().f_code.co_name, p.name)
 
     def create_toolbars(self):
-        for p in self.plugins.itervalues():
+        for p in self.plugins.values():
             try:
                 p.create_toolbars()
             except Exception:
                 self.warn(sys._getframe().f_code.co_name, p.name)
 
     def create_widgets(self):
-        for p in self.plugins.itervalues():
+        for p in self.plugins.values():
             try:
                 p.create_widgets()
             except Exception:
@@ -198,7 +199,7 @@ class PluginManager(object):
         if self.enabled_store[p_type.name] is None:
             # Init setting to True on first encounter
             self.enabled_store[p_type.name] = True
-        enabled = (self.enabled_store[p_type.name].lower() == "true")
+        enabled = self.enabled_store[p_type.name, bool]
         self._enabled[p_type.name] = (enabled, p_type)
         if enabled:
             # Init
@@ -228,7 +229,14 @@ class PluginManager(object):
         mod_name = 'hyperspyui.plugins.' + name
         reload_plugins = mod_name in sys.modules
         try:
-            imp.load_source(mod_name, path)
+            if sys.version_info >= (3, 5):
+                spec = importlib.util.spec_from_file_location(
+                    mod_name, path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+            else:
+                importlib.machinery.SourceFileLoader(
+                    mod_name, path).load_module()
         except Exception:
             self.warn("import", name)
         loaded = self._inheritors(master).difference(prev)
@@ -276,7 +284,7 @@ class PluginManager(object):
         self.plugins.pop(plugin.name)
 
     def reload(self, plugin):
-        new_module = reload(sys.modules[plugin.__module__])
+        new_module = importlib.reload(sys.modules[plugin.__module__])
         new_ptype = new_module[plugin.__class__.__name__]
         if new_ptype is not None:
             self.unload(plugin)

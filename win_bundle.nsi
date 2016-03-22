@@ -3,9 +3,8 @@
 ; HM NIS Edit Wizard helper defines
 !define PRODUCT_NAME "HyperSpyUI Bundle"
 !define PRODUCT_PUBLISHER "HyperSpyUI"
-!define PRODUCT_VERSION "0.6"
-!define WHEEL "hyperspyUI-0.5-py2-none-any.whl"
-!define BUNDLE_OUT "HyperSpy 0.8.1"
+!define PRODUCT_VERSION "0.7+dev"
+!define WHEEL "hyperspyUI-${PRODUCT_VERSION}-py3-none-any.whl"
 
 SetCompressor lzma
 SetCompress off
@@ -15,6 +14,7 @@ SetCompress off
 
 ; MUI 1.67 compatible ------
 !include "MUI.nsh"
+!include "Sections.nsh"
 
 ; MUI Settings
 !define MUI_ABORTWARNING
@@ -50,6 +50,40 @@ SetCompress off
 !define LVM_GETITEMCOUNT 0x1004
 !define LVM_GETITEMTEXT 0x102D
 
+
+!include 'LogicLib.nsh'
+!include 'FileFunc.nsh'
+!insertmacro Locate
+
+Var /GLOBAL switch_overwrite
+!include 'MoveFileFolder.nsh'
+
+
+; ----------------------- Macro definitions ----------------------------------
+
+!define AllFileTypes ""
+!macro FileTypeSectionOn Name
+    Section '${Name}'
+        SectionIn 1 2 3
+    SectionEnd
+    !define TmpStore "${AllFileTypes} ${Name}"
+    !undef AllFileTypes
+    !define AllFileTypes "${TmpStore}"
+    !undef TmpStore
+!macroend
+!macro FileTypeSectionOff Name
+    Section '${Name}'
+        SectionIn 2
+    SectionEnd
+    !define TmpStore "${AllFileTypes} ${Name}"
+    !undef AllFileTypes
+    !define AllFileTypes "${TmpStore}"
+    !undef TmpStore
+!macroend
+
+
+; --------------------- Function definitions --------------------------------
+
 Function DumpLog
   Exch $5
   Push $0
@@ -70,6 +104,7 @@ Function DumpLog
     StrCpy $2 0
     System::Call "*(i, i, i, i, i, i, i, i, i) i \
       (0, 0, 0, 0, 0, r3, ${NSIS_MAX_STRLEN}) .r1"
+    FileWrite $5 "$\r$\n$\r$\n------- Begin detail view dump ----------$\r$\n"
     loop: StrCmp $2 $6 done
       System::Call "User32::SendMessageA(i, i, i, i) i \
         ($0, ${LVM_GETITEMTEXT}, $2, r1)"
@@ -91,18 +126,182 @@ Function DumpLog
     Exch $5
 FunctionEnd
 
-; MUI end ------
+!macro DumpLog LogFile
+    Push `${LogFile}`
+    Call DumpLog
+!macroend
+
+!define DumpLog "!insertmacro DumpLog"
+
+Function DosLog
+    Exch $R0  ; Incoming command
+    ExecDos::exec /DETAILED $R0 "" ""
+    Pop $R0
+FunctionEnd
+
+!macro DosLog Cmd
+    Push `${Cmd}`
+    Call DosLog
+!macroend
+
+!define DosLog "!insertmacro DosLog"
+
+Function ConsumeWord
+    Exch $R0  ; R0 has WordList (input)
+    Push $R1  ; Inspection character
+    Push $R2  ; Inspected position
+    Push $R3  ; WordList length
+    Push $R4  ; Word length
+
+    StrLen $R3 $R0
+    ${If} $R3 > 1
+        ;Start counter (word boundary position)
+        StrCpy $R2 1    ; Skip leading space
+
+        ${Do}
+            StrCpy $R1 $R0 1 $R2
+            ; Is current char space, ie. word boundary?
+            ${IfThen} $R1 == ' ' ${|} ${ExitDo} ${|}
+            ; Is current char last?
+            ${IfThen} $R2 >= $R3 ${|} ${ExitDo} ${|}
+            IntOp $R2 $R2 + 1
+        ${Loop}
+        ; Let R0 store new WordList, and R1 store new word
+        IntOp $R4 $R2 - 1
+        StrCpy $R1 $R0 $R4 1
+        StrCpy $R0 $R0 `` $R2  ; Leave space behind
+    ${Else}
+        StrCpy $R1 ""
+        StrCpy $R0 ""
+    ${EndIf}
+    Pop $R4
+    Pop $R3
+    Pop $R2
+    Exch $R1
+    Exch
+    Exch $R0
+FunctionEnd
+
+!macro ConsumeWord Word WordList
+    Push `${WordList}`
+    Call ConsumeWord
+    Pop `${WordList}`
+    Pop `${Word}`
+!macroend
+
+!define ConsumeWord "!insertmacro ConsumeWord"
+
+Function GetSelectedFileTypes
+    Exch $R0  ; WordList - input, output
+    Push $R1  ; Current word
+    Push $R2  ; Selected words - output
+    Push $R3  ; Section index
+    Push $R4  ; Section name
+    StrCpy $R3 0
+    StrCpy $R2 ""
+    StrCpy $R4 "something random"
+    ClearErrors
+    loop:
+        ${ConsumeWord} $R1 $R0      ; Strip of first word into R1
+        StrCmp $R1 "" loop_end      ; Empty word signifies complete
+        ${Do}
+            SectionGetText $R3 $R4
+            IfErrors 0 +2
+            Goto loop_end
+            ${If} $R3 == ''
+            ${ElseIf} $R4 == $R1
+                ${ExitDo}
+            ${EndIf}
+            IntOp $R3 $R3 + 1
+        ${Loop}
+        ${If} ${SectionIsSelected} $R3   ; Is Section selected?
+            StrCpy $R2 "$R2 $R1"    ; Yes, copy to list
+        ${EndIf}
+        IntOp $R3 $R3 + 1
+        Goto loop
+    loop_end:
+    Pop $R4
+    Pop $R3
+    Exch 2
+    Pop $R0
+    Pop $R1
+    Exch $R2
+FunctionEnd
+
+!macro GetSelectedFileTypes WordList SelectedList
+    Push `${WordList}`
+    Call GetSelectedFileTypes
+    Pop `${SelectedList}`
+!macroend
+
+!define GetSelectedFileTypes "!insertmacro GetSelectedFileTypes"
+
+Function GetPythonDir
+    Push $R1
+    Push $R0
+    FindFirst $R0 $R1 "$INSTDIR\python*"
+    loop:
+        StrCmp $R1 "" done
+        IfFileExists "$INSTDIR\$R1\*.*" done
+        FindNext $R0 $R1
+        Goto loop
+    done:
+    StrCpy $R1 "$INSTDIR\$R1"
+    FindClose $R0
+    FindClose $R0
+    Pop $R0
+    Exch $R1
+FunctionEnd
+
+!macro GetPythonDir PythonDir
+    Call GetPythonDir
+    Pop `${PythonDir}`
+!macroend
+
+!define GetPythonDir "!insertmacro GetPythonDir"
+
+Function InstallInProgramFiles
+    Push $R0
+    Push $R1
+    StrLen $R1 $PROGRAMFILES64
+    StrCpy $R0 $InstDir $R1
+    StrCmp $R0 $PROGRAMFILES64 yes
+    StrLen $R1 $PROGRAMFILES32
+    StrCpy $R0 $InstDir $R1
+    StrCmp $R0 $PROGRAMFILES32 yes no
+    yes:
+    StrCpy $R0 1
+    Goto return
+    no:
+    StrCpy $R0 0
+    return:
+    Pop $R1
+    Exch $R0
+FunctionEnd
+
+!macro InstallInProgramFiles ReturnValue
+    Call InstallInProgramFiles
+    Pop `${ReturnValue}`
+!macroend
+
+!define InstallInProgramFiles "!insertmacro InstallInProgramFiles"
+
+; ---------------------------- Start installer --------------------------------
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
 !ifdef CL64
     OutFile "HyperSpyUI-${PRODUCT_VERSION}-Bundle-64bit.exe"
+    InstallDir "$PROGRAMFILES64\HyperSpyUI"
 !else
     OutFile "HyperSpyUI-${PRODUCT_VERSION}-Bundle-32bit.exe"
+    InstallDir "$PROGRAMFILES32\HyperSpyUI"
 !endif
-InstallDir "$PROGRAMFILES\HyperSpyUI"
 ShowInstDetails show
 
 InstType "Default"
+InstType "Full"
+InstType "HyperspyUI only"
+InstType "No OS intergation"
 
 ;Section -SETTINGS
 ;  SetOutPath "$INSTDIR"
@@ -111,7 +310,7 @@ InstType "Default"
 DirText "Choose the directory to install HyperSpyUI to."
 
 Section "Python"
-    SectionIn 1
+    SectionIn 1 4
     SetOutPath $TEMP
     File ".\bundle_prerequisites\${BUNDLE}"
     SetOutPath "$INSTDIR"
@@ -119,42 +318,119 @@ Section "Python"
     ExecWait "$TEMP\${BUNDLE} /S /D=$INSTDIR"
     Delete "$TEMP\${BUNDLE}"
 
+    ; If we install in Program files, prevent settings from being stored
+    ; locally, as that will require admin rights to run scripts!
+    Push $R0
+    ${InstallInProgramFiles} $R0
+    ${If} $R0 ==  1
+        StrCpy $switch_overwrite 2  ; Don't overwrite anything
+        !insertmacro MoveFolder "$INSTDIR\settings" "$PROFILE" *
+        RMDir /r "$INSTDIR\settings\.ipython"
+        RMDir /r "$INSTDIR\settings\.jupyter"
+        RMDir /r "$INSTDIR\settings\.matplotlib"
+        RMDir /r "$INSTDIR\settings\.hyperspy"
+        RMDir /r "$INSTDIR\settings\nbextensions"
+        RMDir /r "$INSTDIR\settings\runtime"
+        RMDir /r "$INSTDIR\settings\seaborn-data"
+        Delete "$INSTDIR\settings\winpython.ini"
+        Delete "$INSTDIR\settings\pydistutils.cfg"
+        RMDir "$INSTDIR\settings"
+    ${EndIf}
+    Pop $R0
+    ; Installer is precompressed, so we need to add roughly a Gig of space
+    AddSize 1000000
 SectionEnd
 
 Section "Register python"
     SectionIn 1
     ; TODO: Check whether to reg for all
     SetOutPath "$INSTDIR\scripts"
-    ExecWait "$INSTDIR\scripts\register_python.bat"
+    ${DosLog} "$INSTDIR\scripts\register_python.bat"
     DetailPrint "Checking the list twice."
-    ExecWait "$INSTDIR\scripts\register_python.bat"
+    ${DosLog} "$INSTDIR\scripts\register_python.bat"
 SectionEnd
 
 Section "HyperSpyUI"
-    SectionIn 1 RO
+    SectionIn 1 2 3 4 RO
     SetOutPath $TEMP
     File ".\dist\${WHEEL}"
     File ".\bin\win_bundle_install.bat"
-;    SetOutPath "$TEMP\wheels"
-;    File ".\bundle_prerequisites\wheels\*.whl"
+    ; If you want to include binary wheels for prerequisites, or just to enable
+    ; offline innstallation, uncomment these lines (and delete line below)
+    ; and add the wheels to the .\bundle_prerequisites\wheels\ folder:
+    SetOutPath "$TEMP\wheels"
+    File ".\bundle_prerequisites\wheels\*.whl"
     SetOutPath $INSTDIR
-; --no-deps
-; --install-option="--install-scripts=/usr/local/bin"
 
-    ExecWait '$TEMP\win_bundle_install.bat "$INSTDIR\${BUNDLE_OUT}\scripts\env.bat" pip install --use-wheel --compile "$TEMP\${WHEEL}"'
-    ;Delete "$TEMP\${WHEEL}"
-;    Delete "$TEMP\wheels\*.whl"
-    ;Delete "$TEMP\win_bundle_install.bat"
-    StrCpy $0 "$INSTDIR\install.log"
-    Push $0
-    Call DumpLog
-SectionEnd
-
-Section "Register HyperSpyUI"
-    SectionIn 1
-    SetOutPath $TEMP
-    File ".\bin\win_bundle_install.bat"
-    SetOutPath $INSTDIR
-    ExecWait '$TEMP\win_bundle_install.bat "$INSTDIR\${BUNDLE_OUT}\scripts\env.bat" python "%WINPYDIR%\Scripts\hyperspyui_install.py"'
+    ${DosLog} '$TEMP\win_bundle_install.bat "$INSTDIR\scripts\env.bat" easy_install --upgrade pip'
+    ${DosLog} '$TEMP\win_bundle_install.bat "$INSTDIR\scripts\env.bat" pip install --no-deps --compile -U "$TEMP\${WHEEL}"'
+    ${DosLog} '$TEMP\win_bundle_install.bat "$INSTDIR\scripts\env.bat" pip install --use-wheel --find-links="$TEMP\wheels" --compile "$TEMP\${WHEEL}"'
+    Delete "$TEMP\${WHEEL}"
+    Delete "$TEMP\wheels\*.whl"
     Delete "$TEMP\win_bundle_install.bat"
+    Push $R0
+    ${GetPythonDir} $R0
+    CreateShortCut "$INSTDIR\${PRODUCT_NAME}.lnk" "$R0\python.exe" "-m hyperspyui.launch"
+    Pop $R0
 SectionEnd
+
+SectionGroup /e "Register HyperSpyUI"
+    Section "Create shortcuts"
+        SectionIn 1 2 3
+        SetOutPath $INSTDIR
+        Push $R0
+        ${GetPythonDir} $R0
+        SetOutPath "$R0"
+        ${DosLog} '"$R0\python.exe" "$R0\Scripts\hyperspyui_install.py" -filetypes'
+        Pop $R0
+    SectionEnd
+    SectionGroup "Register filetypes"
+        SectionGroup 'DigitalMicrograph filetypes'
+            !insertmacro FileTypeSectionOff 'dm3'
+            !insertmacro FileTypeSectionOff 'dm4'
+        SectionGroupEnd
+        SectionGroup 'FEI filetypes'
+            !insertmacro FileTypeSectionOff 'emi'
+            !insertmacro FileTypeSectionOff 'ser'
+        SectionGroupEnd
+        SectionGroup 'HDF filetypes'
+            !insertmacro FileTypeSectionOn 'hdf'
+            !insertmacro FileTypeSectionOn 'hdf4'
+            !insertmacro FileTypeSectionOn 'hdf5'
+            !insertmacro FileTypeSectionOn 'h4'
+            !insertmacro FileTypeSectionOn 'h5'
+            !insertmacro FileTypeSectionOn 'he4'
+            !insertmacro FileTypeSectionOn 'he5'
+        SectionGroupEnd
+        SectionGroup 'MSA filetypes'
+            !insertmacro FileTypeSectionOn 'mas'
+            !insertmacro FileTypeSectionOn 'msa'
+            !insertmacro FileTypeSectionOn 'ems'
+            !insertmacro FileTypeSectionOn 'emsa'
+        SectionGroupEnd
+        SectionGroup 'Other'
+            !insertmacro FileTypeSectionOn 'ali'
+            !insertmacro FileTypeSectionOn 'mrc'
+            !insertmacro FileTypeSectionOn 'blo'
+            !insertmacro FileTypeSectionOn 'dens'
+            !insertmacro FileTypeSectionOn 'nc'
+            !insertmacro FileTypeSectionOn 'rpl'
+            !insertmacro FileTypeSectionOn 'unf'
+        SectionGroupEnd
+        Section -HiddenWorker
+            SectionIn 1 2 3
+            SetOutPath $INSTDIR
+            ; Which file types are selected?
+            Push $R0
+            ${GetSelectedFileTypes} "${AllFileTypes}" $R0
+            DetailPrint $R0
+            Push $R1
+            ${GetPythonDir} $R1
+            SetOutPath "$R1"
+            ${DosLog} '"$R1\python.exe" "$R1\Scripts\hyperspyui_install.py" -no-shortcuts -filetypes $R0'
+            Pop $R0
+            Pop $R1
+            ${DumpLog} "$INSTDIR\install.log"
+        SectionEnd
+    SectionGroupEnd
+SectionGroupEnd

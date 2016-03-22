@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -23,7 +23,7 @@ Created on Sun Dec 07 05:23:12 2014
 
 import os
 
-from figuretool import FigureTool
+from .figuretool import FigureTool
 
 
 class PointerTool(FigureTool):
@@ -35,7 +35,7 @@ class PointerTool(FigureTool):
         return "Pointer tool"
 
     def get_category(self):
-        return 'Navigation'
+        return 'Plot'
 
     def get_icon(self):
         return os.path.dirname(__file__) + '/../images/pointer.svg'

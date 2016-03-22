@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -37,6 +37,7 @@ class FittingPlugin(Plugin):
 
     def create_tools(self):
         self.reg_tool = RegressionTool()
+        self.reg_tool.category = 'Spectrum'
         self.reg_tool.accepted[BaseInteractiveROI].connect(self.regression)
         self.add_tool(self.reg_tool, self.ui.select_signal)
 
@@ -86,8 +87,8 @@ class RegressionTool(SelectionTool):
     """
     """
 
-    def __init__(self, windows=None):
-        super(RegressionTool, self).__init__(windows)
+    def __init__(self, *args, **kwargs):
+        super(RegressionTool, self).__init__(*args, **kwargs)
         self.valid_dimensions = [1]
 
     def on_keyup(self, event):

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -29,7 +29,7 @@ import re
 from collections import OrderedDict
 import imp
 from functools import partial
-from StringIO import StringIO, _complain_ifclosed
+from io import StringIO
 
 
 def check_git_repo(package_name):
@@ -54,9 +54,10 @@ def get_github_branches(repo_url):
     The branches are returned in the form of an ordered dictionary, with branch
     names as keys, and source zip URL as value.
     """
-    import urllib2
+    import urllib.request
     branch_url = repo_url + '/branches/all'
-    html = urllib2.urlopen(branch_url).read()
+    res = urllib.request.urlopen(branch_url)
+    html = res.read().decode(res.headers.get_content_charset())
     names = re.findall(
         '<a href=".*?" class="branch-name css-truncate-target">(.*?)</a>',
         html)
@@ -142,19 +143,40 @@ def checkout_branch(branch, stream=None):
     """
     if branch is None:
         return
-    if isinstance(branch, basestring):
+    if isinstance(branch, str):
         import pip
+        import sys
+
+        class WrapDownloadProgressBar(pip.download.DownloadProgressBar):
+            def __init__(self, *args, **kwargs):
+                super(WrapDownloadProgressBar, self).__init__(
+                    *args, **kwargs)
+                self.file = stream
+
+        class WrapDownloadProgressBarSpinner(
+                pip.download.DownloadProgressSpinner):
+            def __init__(self, *args, **kwargs):
+                super(WrapDownloadProgressBarSpinner, self).__init__(
+                    *args, **kwargs)
+                self.file = stream
         ic = pip.commands.InstallCommand()
         ic.log_streams = (stream, stream)
-        old_files = (pip.download.DownloadProgressBar.file,
-                     pip.download.DownloadProgressSpinner.file)
-        pip.download.DownloadProgressBar.file = stream
-        pip.download.DownloadProgressSpinner.file = stream
+        old_classes = (pip.download.DownloadProgressBar,
+                       pip.download.DownloadProgressSpinner)
+        pip.download.DownloadProgressBar = WrapDownloadProgressBar
+        pip.download.DownloadProgressSpinner = WrapDownloadProgressBarSpinner
+        stdout_set = False
+        if sys.__stdout__ is None:
+            sys.__stdout__ = sys.stdout
+            stdout_set = True
         try:
-            ic.main(['-U', '--no-compile', branch])
+            ic.main(['--no-deps', '-I', branch])
+            ic.main([branch])
         finally:
-            (pip.download.DownloadProgressBar.file,
-             pip.download.DownloadProgressSpinner.file) = old_files
+            if stdout_set:
+                sys.__stdout__ = None  # Let's leave things as we found them.
+            (pip.download.DownloadProgressBar,
+             pip.download.DownloadProgressSpinner) = old_classes
     else:
         try:
             branch.checkout()
@@ -174,12 +196,13 @@ class GitSelector(Plugin):
 
     def __init__(self, main_window):
         super(GitSelector, self).__init__(main_window)
+        self.settings.set_default('check_for_updates_on_start', True)
         self.settings.set_default('check_for_git_updates', False)
         self.packages = {
-            'HyperSpy': [True, ['https://github.com/hyperspy/hyperspy',
-                                'https://github.com/vidartf/hyperspy']],
-            'HyperSpyUI': [True, ['https://github.com/vidartf/hyperspyui']],
+            'HyperSpy': [True, 'https://github.com/hyperspy/hyperspy'],
+            'HyperSpyUI': [True, 'https://github.com/hyperspy/hyperspyui'],
             }
+        self.ui.load_complete.connect(self._on_load_complete)
         if got_git:
             git.Git.GIT_PYTHON_GIT_EXECUTABLE = \
                     self.settings['git_executable'] or ''
@@ -194,15 +217,14 @@ class GitSelector(Plugin):
             tip="Check for new versions of HyperSpy/HyperSpyUI",)
 
     def _check_git(self):
-        for package_name in self.packages.iterkeys():
+        for package_name in self.packages.keys():
             if check_git_repo(package_name.lower()):
                 git_ok = use_git
                 if git_ok:
                     git_ok = check_git_cmd(True, self.ui)
                     self.settings['git_executable'] = \
                         git.Git.GIT_PYTHON_GIT_EXECUTABLE
-                if not git_ok:
-                    self.packages[package_name][0] = False
+                self.packages[package_name][0] = git_ok
 
     def create_menu(self):
         self.add_menuitem('Settings',
@@ -210,8 +232,12 @@ class GitSelector(Plugin):
         self.add_menuitem('Settings',
                           self.ui.actions[self.name + '.update_check'])
 
+    def _on_load_complete(self):
+        if self.settings['check_for_updates_on_start', bool]:
+            self.update_check(silent=True)
+
     def _perform_update(self, package):
-        stream = VisualLogStream(self.plugin.ui)
+        stream = VisualLogStream(self.ui)
         try:
             checkout_branch(package, stream)
         finally:
@@ -219,10 +245,22 @@ class GitSelector(Plugin):
             if diag is not None:
                 diag.btn_close.setEnabled(True)
 
-    def update_check(self):
+    def update_check(self, silent=False):
+        """
+        Checks for updates to hyperspy and hyperspyUI.
+
+        If the packages are not source installs, it checks for a new version on
+        PyPI.
+
+        Parameters
+        ----------
+            silent: bool
+                If not silent (default), a message box will appear if no
+                updates are available, with a message to that fact.
+        """
         self._check_git()
-        available = []
-        for Name, (enabled, urls) in self.packages.iteritems():
+        available = {}
+        for Name, (enabled, url) in self.packages.items():
             name = Name.lower()
             if enabled:
                 if (check_git_repo(name) and
@@ -230,23 +268,34 @@ class GitSelector(Plugin):
                     # TODO: Check for commits to pull
                     pass
                 else:
-                    import pip
-                    c = pip.commands.ListCommand()
-                    options, args = c.parse_args([])
-
-                    for dist, version, typ in c.find_packages_latest_versions(
-                            options):
-                        if dist.key == name and version > dist.parsed_version:
-                            available.append(name)
+                    import xmlrpc.client
+                    pypi = xmlrpc.client.ServerProxy(
+                        'http://pypi.python.org/pypi')
+                    found = pypi.package_releases(name)
+                    if not found:
+                        # Try to capitalize pkg name
+                        if name == 'hyperspyui':
+                            found = pypi.package_releases('hyperspyUI')
+                        else:
+                            found = pypi.package_releases(Name)
+                    if found:
+                        import pip
+                        dist = [d for d in pip.get_installed_distributions()
+                                if d.project_name.lower() == name]
+                        if dist[0].version < found[0]:
+                            available[name] = found[0]
 
         if available:
-            w = self._get_update_list(available)
-            dr = self.ui.show_okcancel_dialog("Updates available", w).result()
-            if dr == QDialog.Accepted:
+            w = self._get_update_list(available.keys())
+            diag = self.ui.show_okcancel_dialog("Updates available", w)
+            if diag.result() == QDialog.Accepted:
                 for chk in w.children():
                     if isinstance(chk, QCheckBox):
-                        self._perform_update(chk.text())
-        else:
+                        name = chk.text()
+                        if available[name]:
+                            name += '==' + available[name]
+                        self._perform_update(name)
+        elif not silent:
             mb = QMessageBox(QMessageBox.Information, tr("No updates"),
                              tr("No new updates were found."),
                              parent=self.ui)
@@ -260,6 +309,7 @@ class GitSelector(Plugin):
         for n in names:
             vbox.addWidget(QCheckBox(n))
         w.setLayout(vbox)
+        return w
 
     def show_dialog(self):
         if len(self.dialogs) > 0:
@@ -300,19 +350,12 @@ class VersionSelectionDialog(QDialog):
 
         vbox = QVBoxLayout()
         form = QFormLayout()
-        for Name, (enabled, urls) in self.packages.iteritems():
+        for Name, (enabled, url) in self.packages.items():
             name = Name.lower()
             cbo = QComboBox()
             if enabled:
-                branches = get_branches(name, urls[0])
-                if len(urls) > 1:
-                    for url in urls[1:]:
-                        try:
-                            b = get_branches(name, url)['hyperspyui']
-                            branches.update({'hyperspyui': b})
-                        except KeyError:
-                            pass
-                for n, b in branches.iteritems():
+                branches = get_branches(name, url)
+                for n, b in branches.items():
                     cbo.addItem(n, b)
                 if not check_git_repo(name):
                     cbo.insertItem(0, "<Select to change>", None)
@@ -353,7 +396,8 @@ class VisualLogStream(StringIO):
             self.dialog.show()
 
     def isatty(self):
-        _complain_ifclosed(self.closed)
+        if self.closed:
+            raise ValueError("Cannot call isatty when stream is closed.")
         return True
 
     def write(self, s):
@@ -364,6 +408,7 @@ class VisualLogStream(StringIO):
             pos = v.rfind('\n', 0, len(v)-1)
             if pos > 0:
                 self.truncate(pos+1)
+                self.seek(pos+1)
         else:
             StringIO.write(self, s)
             self._ensure_dialog()

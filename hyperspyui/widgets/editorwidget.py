@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -31,11 +31,11 @@ from pyqode.core import api
 from pyqode.core import modes
 from pyqode.core import panels
 from pyqode.core.widgets import TabWidget
-import _editor_server as server
+from . import _editor_server as server
 from pyqode.python import modes as pymodes
 from pyqode.python.backend.workers import run_pyflakes, calltips
 
-from extendedqwidgets import ExToolWindow
+from .extendedqwidgets import ExToolWindow
 import hyperspyui.plugincreator as pc
 
 

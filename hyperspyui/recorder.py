@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -23,11 +23,11 @@ Created on Sat Feb 21 12:03:33 2015
 
 from python_qt_binding import QtCore
 
-from plugincreator import create_plugin_code
+from .plugincreator import create_plugin_code
 
 
 class Recorder(QtCore.QObject):
-    record = QtCore.Signal(basestring)
+    record = QtCore.Signal(str)
 
     def __init__(self):
         super(Recorder, self).__init__()

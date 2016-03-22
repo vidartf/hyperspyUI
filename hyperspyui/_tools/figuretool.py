@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -24,7 +24,7 @@ Created on Sun Dec 07 01:48:00 2014
 import collections
 from python_qt_binding import QtCore
 
-from tool import Tool
+from .tool import Tool
 
 
 class FigureTool(Tool):
@@ -114,8 +114,8 @@ class FigureTool(Tool):
         windows = self._iter_windows(windows)
         for w in windows:
             canvas = w.widget()
-            for cid_iter in self.cids.itervalues():
-                for canv, cid in cid_iter.iteritems():
+            for cid_iter in self.cids.values():
+                for canv, cid in cid_iter.items():
                     if canv == canvas:
                         try:
                             canvas.mpl_disconnect(cid)

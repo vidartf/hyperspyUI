@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -92,13 +92,13 @@ class Plugin(object):
         pass
 
     def unload(self):
-        for category, actions in self.menu_actions.iteritems():
+        for category, actions in self.menu_actions.items():
             for action in actions:
                 self.ui.menus[category].removeAction(action)
-        for category, actions in self.toolbar_actions.iteritems():
+        for category, actions in self.toolbar_actions.items():
             for action in actions:
                 self.ui.toolbars[category].removeAction(action)
-        for key in self.actions.iterkeys():
+        for key in self.actions.keys():
             self.ui.actions.pop(key, None)
         for tool in self.tools:
             self.ui.remove_tool(tool)

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -18,6 +18,7 @@
 
 from hyperspyui.plugins.plugin import Plugin
 import matplotlib as mpl
+import matplotlib.animation as animation
 import os
 import sys
 
@@ -33,7 +34,7 @@ def tr(text):
 # =============================================================================
 # Check that we have a valid writer
 writer = mpl.rcParams['animation.writer']
-writers = mpl.animation.writers
+writers = animation.writers
 if writer in writers.avail:
     writer = writers[writer]()
 else:
@@ -99,7 +100,7 @@ class MovieSaver(Plugin):
                     extra = ['-v', 'debug']
             metadata = signal.metadata.as_dictionary()
             writer = mpl.rcParams['animation.writer']
-            writers = mpl.animation.writers
+            writers = animation.writers
             if writer in writers.avail:
                 writer = writers[writer](fps=fps, metadata=metadata,
                                          codec=codec, extra_args=extra)

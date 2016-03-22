@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -27,14 +27,14 @@ from matplotlib.widgets import SpanSelector
 
 from hyperspy.components import Gaussian
 try:
-    from hyperspy.components import Gaussian2
-    GaussTypes = (Gaussian, Gaussian2)
+    from hyperspy.components import GaussianHF
+    GaussTypes = (Gaussian, GaussianHF)
     has_gauss_v2 = True
 except ImportError:
     GaussTypes = (Gaussian, )
     has_gauss_v2 = False
 
-from figuretool import FigureTool
+from .figuretool import FigureTool
 from hyperspyui.util import crosshair_cursor
 
 
@@ -51,7 +51,7 @@ class GaussianTool(FigureTool):
         return "Gaussian tool"
 
     def get_category(self):
-        return 'Components'
+        return 'Spectrum'
 
     def get_icon(self):
         return os.path.dirname(__file__) + '/../images/gaussian.svg'
@@ -129,11 +129,11 @@ class GaussianTool(FigureTool):
                 self._wire_wrapper(mw)
             m = mw.model
             i = m.axis.value2index(x)
-            h = m.spectrum()[i] - m()[i]
-            if m.spectrum.metadata.Signal.binned:
+            h = m.signal()[i] - m()[i]
+            if m.signal.metadata.Signal.binned:
                 h /= m.axis.scale
             if has_gauss_v2:
-                g = Gaussian2(height=h * np.sqrt(2 * np.pi), centre=x)
+                g = GaussianHF(height=h * np.sqrt(2 * np.pi), centre=x)
                 g.height.free = False
             else:
                 g = Gaussian(A=h, centre=x)
@@ -161,7 +161,7 @@ class GaussianTool(FigureTool):
         m = mw.model
 
         if has_gauss_v2:
-            g = Gaussian2()
+            g = GaussianHF()
         else:
             g = Gaussian()
         mw.add_component(g)
@@ -169,9 +169,9 @@ class GaussianTool(FigureTool):
         m.fit_component(g, signal_range=(x0, x1))
         i = m.axis.value2index(g.centre.value)
         g.active = False
-        h = m.spectrum()[i] - m(onlyactive=True)[i]
+        h = m.signal()[i] - m(onlyactive=True)[i]
         g.active = True
-        if m.spectrum.metadata.Signal.binned:
+        if m.signal.metadata.Signal.binned:
             h /= m.axis.scale
         if has_gauss_v2:
             g.height.value = h

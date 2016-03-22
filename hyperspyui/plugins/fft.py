@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -48,28 +48,47 @@ class FFT_Plugin(Plugin):
         self.add_action('fft', "FFT", self.fft,
                         icon='fft.svg',
                         tip="Perform a fast fourier transform on the " +
-                        "active part of the signal")
+                        "active part of the signal",
+                        selection_callback=self.ui.select_signal)
 
         self.add_action('live_fft', "Live FFT", self.live_fft,
                         icon='live_fft.svg',
                         tip="Perform a fast fourier transform on the " +
                         "active part of the signal, and link it to the " +
-                        "navigator")
+                        "navigator",
+                        selection_callback=self.ui.select_signal)
 
         self.add_action('nfft', "Signal FFT", self.nfft,
                         icon='nfft.svg',
                         tip="Perform a fast fourier transform on the " +
-                            "entire signal")
+                            "entire signal",
+                        selection_callback=self.ui.select_signal)
 
         self.add_action('ifft', "Inverse FFT", self.ifft,
                         icon='ifft.svg',
                         tip="Perform an inverse fast fourier transform on " +
-                            "the active part of the signal")
+                            "the active part of the signal",
+                        selection_callback=self.ui.select_signal)
 
         self.add_action('infft', "Inverse Signal FFT", self.infft,
                         icon='infft.svg',
                         tip="Perform an inverse fast fourier transform on" +
-                        " the entire signal")
+                        " the entire signal",
+                        selection_callback=self.ui.select_signal)
+
+        self.add_action('decompose', "FFT Magnitude/Phase", self.decompose,
+                        icon=None,
+                        tip="Decompose a fast fourier transformation result " +
+                        "into its magnitude and phase.",
+                        selection_callback=self.ui.select_signal)
+
+    def create_menu(self):
+        self.add_menuitem("Math", self.ui.actions['fft'])
+        self.add_menuitem("Math", self.ui.actions['live_fft'])
+        self.add_menuitem("Math", self.ui.actions['nfft'])
+        self.add_menuitem("Math", self.ui.actions['ifft'])
+        self.add_menuitem("Math", self.ui.actions['infft'])
+        self.add_menuitem("Math", self.ui.actions['decompose'])
 
     def create_toolbars(self):
         self.add_toolbar_button("Math", self.ui.actions['fft'])
@@ -80,7 +99,7 @@ class FFT_Plugin(Plugin):
 
     def fft(self, signals=None, inverse=False, on_complete=None):
         if signals is None:
-            signals = self.ui.get_selected_wrappers()
+            signals = self.ui.get_selected_signals()
         # Make sure we can iterate
         if isinstance(signals, hyperspy.signals.Signal):
             signals = (signals,)
@@ -95,8 +114,7 @@ class FFT_Plugin(Plugin):
                     on_complete(sw)
 
         def do_ffts():
-            for i, sw in enumerate(signals):
-                s = sw.signal
+            for i, s in enumerate(signals):
                 if inverse:
                     fftdata = scipy.fftpack.ifftshift(s())
                     fftdata = scipy.fftpack.ifftn(fftdata)
@@ -116,7 +134,7 @@ class FFT_Plugin(Plugin):
                 ffts.metadata.General.title = invstr + 'FFT of ' + \
                     ffts.metadata.General.title + indstr
 
-                for i in xrange(ffts.axes_manager.signal_dimension):
+                for i in range(ffts.axes_manager.signal_dimension):
                     axis = ffts.axes_manager.signal_axes[i]
                     s_axis = s.axes_manager.signal_axes[i]
                     if not inverse:
@@ -152,7 +170,7 @@ class FFT_Plugin(Plugin):
 
     def nfft(self, signals=None, inverse=False):
         if signals is None:
-            signals = self.ui.get_selected_wrappers()
+            signals = self.ui.get_selected_signals()
             if signals is None:
                 return
         # Make sure we can iterate
@@ -170,14 +188,13 @@ class FFT_Plugin(Plugin):
 
         def do_ffts():
             j = 0
-            for sw in signals:
-                ffts = sw.signal.deepcopy()
+            for s in signals:
+                ffts = s.deepcopy()
                 if ffts.data.itemsize <= 4:
                     ffts.change_dtype(np.complex64)
                 else:
                     ffts.change_dtype(np.complex128)
 
-                s = sw.signal
                 am = AxesManager(s.axes_manager._get_axes_dicts())
                 for idx in am:
                     fftdata = s.data[am._getitem_tuple]
@@ -187,7 +204,7 @@ class FFT_Plugin(Plugin):
                     j += 1
                     yield j
 
-                for i in xrange(ffts.axes_manager.signal_dimension):
+                for i in range(ffts.axes_manager.signal_dimension):
                     axis = ffts.axes_manager.signal_axes[i]
                     s_axis = s.axes_manager.signal_axes[i]
                     axis.scale = 1 / (s_axis.size * s_axis.scale)
@@ -207,17 +224,16 @@ class FFT_Plugin(Plugin):
 
         def do_iffts():
             j = 0
-            for sw in signals:
-                ffts = sw.signal.deepcopy()
+            for s in signals:
+                ffts = s.deepcopy()
                 if ffts.data.itemsize <= 4:
                     ffts.change_dtype(np.float32)
                 else:
                     ffts.change_dtype(np.float64)
 
-                s = sw.signal
                 am = AxesManager(s.axes_manager._get_axes_dicts())
 
-                for i in xrange(ffts.axes_manager.signal_dimension):
+                for i in range(ffts.axes_manager.signal_dimension):
                     axis = ffts.axes_manager.signal_axes[i]
                     s_axis = s.axes_manager.signal_axes[i]
                     shift = (axis.high_value - axis.low_value) / 2
@@ -267,7 +283,7 @@ class FFT_Plugin(Plugin):
         intensive.
         """
         if signals is None:
-            signals = self.ui.get_selected_wrappers()
+            signals = self.ui.get_selected_signals()
             if signals is None:
                 return
         # Make sure we can iterate
@@ -278,7 +294,7 @@ class FFT_Plugin(Plugin):
             return
 
         def setup_live(fft_wrapper):
-            s = signals[setup_live.i].signal
+            s = signals[setup_live.i]
             setup_live.i += 1
 
             def data_function(axes_manager=None):
@@ -296,12 +312,10 @@ class FFT_Plugin(Plugin):
                 sigp.axes_manager = s.axes_manager
                 sigp.data_function = data_function
 
-            def update():   # Wrapper as sigp.updatewould be passed values
-                sigp.update()
-            s.axes_manager.connect(update)
+            s.axes_manager.events.indices_changed.connect(sigp.update, [])
 
             def on_closing():
-                s.axes_manager.disconnect(update)
+                s.axes_manager.events.indices_changed.disconnect(sigp.update)
             fft_wrapper.closing.connect(on_closing)
 
         setup_live.i = 0
@@ -312,3 +326,13 @@ class FFT_Plugin(Plugin):
 
     def infft(self, signals=None):
         return self.nfft(signals, inverse=True)
+
+    def decompose(self, signal=None):
+        if signal is None:
+            signal = self.ui.get_selected_signal()
+        s_magnitude = signal._deepcopy_with_new_data(
+            np.sqrt(np.real(signal.data)**2 + np.imag(signal.data)**2))
+        s_phase = signal._deepcopy_with_new_data(
+            np.arctan2(np.imag(signal.data), np.real(signal.data)))
+        s_magnitude.plot()
+        s_phase.plot()

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -34,17 +34,23 @@ class VirtualBfDf(Plugin):
         self.add_action(self.name + '.virtual_navigator',
                         "Virtual navigator",
                         self.virtual_navigator,
-                        tip="")
+                        tip="Set the navigator inesity by a virtual aperture")
         self.add_action(self.name + '.virtual_aperture',
                         "Virtual aperture",
                         self.virtual_aperture,
-                        tip="")
+                        tip="Add a virtual aperture to the diffraction image")
+        self.add_action(self.name + '.virtual_annulus',
+                        "Virtual annulus",
+                        self.virtual_annulus,
+                        tip="Add a virtual annulus to the diffraction image")
 
     def create_menu(self):
         self.add_menuitem(
-            'ASTAR', self.ui.actions[self.name + '.virtual_navigator'])
+            'Diffraction', self.ui.actions[self.name + '.virtual_navigator'])
         self.add_menuitem(
-            'ASTAR', self.ui.actions[self.name + '.virtual_aperture'])
+            'Diffraction', self.ui.actions[self.name + '.virtual_aperture'])
+        self.add_menuitem(
+            'Diffraction', self.ui.actions[self.name + '.virtual_annulus'])
 
     def _on_close(self, roi):
         for w in roi.widgets:
@@ -56,7 +62,10 @@ class VirtualBfDf(Plugin):
     def virtual_navigator(self, signal=None):
         return self.virtual_aperture(signal=signal, navigate=True)
 
-    def virtual_aperture(self, signal=None, navigate=False):
+    def virtual_annulus(self, signal=None):
+        return self.virtual_aperture(signal=signal, annulus=True)
+
+    def virtual_aperture(self, signal=None, annulus=False, navigate=False):
         ui = self.ui
         if signal is None:
             signal = ui.get_selected_signal()
@@ -64,16 +73,20 @@ class VirtualBfDf(Plugin):
                        signal.axes_manager.signal_axes]) / 2.0
         r = hs.roi.CircleROI(dd[0], dd[1],
                              signal.axes_manager.signal_axes[0].scale*3)
-        s_virtual = r.interactive(signal, None, axes='signal')
+        if annulus:
+            r.r_inner = signal.axes_manager.signal_axes[0].scale*2
+        s_virtual = r.interactive(signal, None,
+                                  axes=signal.axes_manager.signal_axes)
         s_nav = hs.interactive(
             s_virtual.mean,
             s_virtual.events.data_changed,
-            axis='signal')
+            axis=s_virtual.axes_manager.signal_axes)
+        s_nav.axes_manager.set_signal_dimension(2)
         if navigate:
             signal.plot(navigator=s_nav)
             signal._plot.navigator_plot.update()
             s_nav.events.data_changed.connect(
-                signal._plot.navigator_plot.update)
+                signal._plot.navigator_plot.update, [])
             utils.on_figure_window_close(
                 signal._plot.navigator_plot.figure,
                 partial(self._on_close, r))
@@ -83,4 +96,10 @@ class VirtualBfDf(Plugin):
                 s_nav._plot.signal_plot.figure,
                 partial(self._on_close, r))
 
-        r.add_widget(signal, axes='signal')
+        if navigate:
+            r.add_widget(signal, axes=signal.axes_manager.signal_axes,
+                         color='darkorange')
+        else:
+            r.add_widget(signal, axes=signal.axes_manager.signal_axes)
+        self._rois.append(r)
+        self.record_code("<p>.virtual_aperture(navigate=%s)" % navigate)

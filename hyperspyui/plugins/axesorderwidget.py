@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -110,7 +110,6 @@ class AxesOrderWidget(FigureWidget):
 
         for ax in signal.signal.axes_manager._get_axes_in_natural_order():
             rep = '%s axis, size: %i' % (ax._get_name(), ax.size)
-            rep = rep.encode('utf8')
             p = self.lst_nav if ax.navigate else self.lst_sig
             i = QtGui.QListWidgetItem(rep)
             i.setData(QtCore.Qt.UserRole, ax)
@@ -263,14 +262,16 @@ class AxesListWidget(QtGui.QListWidget):
             shfr = 12
         h = shfr * self.count() + 2 * self.frameWidth()
         s.setHeight(h)
-        s.setWidth(super(AxesListWidget, self).sizeHint().width())
+        s.setWidth(super(AxesListWidget, self).minimumSizeHint().width())
         return s
 
     def sizeHint(self):
-        return self.minimumSizeHint()
+        s = self.minimumSizeHint()
+        s.setWidth(super(AxesListWidget, self).sizeHint().width())
+        return s
 
     def _on_rows_inserted(self, parent, begin, end):
-        for new_idx in xrange(begin, end+1):
+        for new_idx in range(begin, end+1):
             if AxesListWidget.last_drop:
                 old_idx = AxesListWidget.last_drop.pop(0)
                 self.inserted.emit(old_idx, new_idx, self)
@@ -278,7 +279,7 @@ class AxesListWidget(QtGui.QListWidget):
     def _on_rows_moved(self, sourceParent, sourceStart, sourceEnd,
                        destinationParent, destinationRow):
         N = sourceEnd - sourceStart + 1
-        for i in xrange(N):
+        for i in range(N):
             idx = destinationRow + i
             if destinationRow > sourceStart:
                 idx -= N
@@ -304,6 +305,6 @@ class AxesListWidget(QtGui.QListWidget):
             data = m.data("application/x-qabstractitemmodeldatalist")
             r = self.decodeMimeData(data)
             AxesListWidget.last_drop = []
-            for k in r.iterkeys():
+            for k in r.keys():
                 AxesListWidget.last_drop.append(k)
         super(AxesListWidget, self).dropEvent(event)

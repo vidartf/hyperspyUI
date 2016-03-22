@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -27,7 +27,7 @@ from python_qt_binding import QtGui, QtCore
 from QtCore import *
 from QtGui import *
 
-from extendedqwidgets import ExToolWindow
+from .extendedqwidgets import ExToolWindow
 from hyperspyui.settings import Settings
 
 import numpy as np
@@ -73,9 +73,11 @@ class SettingsDialog(ExToolWindow):
                     widget.checkState() == Qt.PartiallyChecked:
                 v = None
             else:
-                v = u"true" if widget.isChecked() else u"false"
+                v = "true" if widget.isChecked() else "false"
         elif isinstance(widget, (QSpinBox, QDoubleSpinBox)):
             v = widget.value()
+        elif isinstance(widget, QComboBox):
+            v = widget.currentText()
 
         # Compare to initial value:
         if v == self._initial_values[key]:
@@ -98,7 +100,7 @@ class SettingsDialog(ExToolWindow):
         if len(self._changes) < 1:
             return
         s = QSettings(self.ui)
-        for k, v in self._changes.iteritems():
+        for k, v in self._changes.items():
             if k in self._initial_values:   # Avoid readding removed settings
                 s.setValue(k, v)
                 self._initial_values[k] = v
@@ -110,11 +112,12 @@ class SettingsDialog(ExToolWindow):
         """
         Create a widget for a settings instance, containing label/editor pairs
         for each setting in the current level of the passed QSettings instance.
-        The key of the setting is used as the label, but its capitalized and
+        The key of the setting is used as the label, but it's capitalized and
         underscores are replaced by spaces.
         """
         wrap = QWidget(self)
         form = QFormLayout()
+        hint_lookup = Settings()
         for k in settings.allKeys():
             if k.startswith("_"):
                 continue                                # Ignore hidden keys
@@ -122,8 +125,16 @@ class SettingsDialog(ExToolWindow):
             label = k.capitalize().replace('_', ' ')
             abs_key = settings.group() + '/' + k
             self._initial_values[abs_key] = v           # Store initial value
+            hints = hint_lookup.get_enum_hint(abs_key)  # Check for enum hints
             # Create a fitting editor widget based on value type:
-            if isinstance(v, basestring):
+            if hints is not None:
+                w = QComboBox()
+                w.addItems(hints)
+                w.setEditable(True)
+                w.setEditText(v)
+                w.editTextChanged.connect(partial(self._on_setting_changed,
+                                                  abs_key, w))
+            elif isinstance(v, str):
                 if v.lower() in ('true', 'false'):
                     w = QCheckBox()
                     w.setChecked(v.lower() == 'true')
@@ -207,7 +218,7 @@ class SettingsDialog(ExToolWindow):
 
             # Now we update controls:
             s = QSettings(self.ui)
-            keys = self._initial_values.keys()  # Use copy, as we may modify
+            keys = list(self._initial_values.keys())  # Use copy, as we may modify
             for k in keys:
                 # Check if setting is still present
                 if s.contains(k):

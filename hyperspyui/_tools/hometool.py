@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -24,7 +24,7 @@ Created on Sun Dec 07 03:49:54 2014
 import os
 from matplotlib.pylab import gca
 
-from figuretool import FigureTool
+from .figuretool import FigureTool
 
 
 class HomeTool(FigureTool):
@@ -36,7 +36,7 @@ class HomeTool(FigureTool):
         return "Home tool"
 
     def get_category(self):
-        return 'Navigation'
+        return 'Plot'
 
     def get_icon(self):
         return os.path.dirname(__file__) + '/../images/home.svg'

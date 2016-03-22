@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Copyright 2007-2016 The HyperSpyUI developers
+# Copyright 2014-2016 The HyperSpyUI developers
 #
 # This file is part of HyperSpyUI.
 #
@@ -402,7 +402,7 @@ class DataViewWidget(QWidget):
         the selected signal.
         """
         sf = win2sig(mdi_figure, self.main_window.signals)
-        for i in xrange(self.tree.topLevelItemCount()):
+        for i in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(i)
             s = item.data(NameCol, Qt.UserRole)
             # In case topLevelItems are not all SignalWrappers in future
