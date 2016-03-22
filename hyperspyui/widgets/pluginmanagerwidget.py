@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Sun Mar 01 03:24:48 2015
 
@@ -12,8 +28,8 @@ from python_qt_binding import QtGui, QtCore
 from QtCore import *
 from QtGui import *
 
-from extendedqwidgets import ExToolWindow
-from editorwidget import EditorWidget
+from .extendedqwidgets import ExToolWindow
+from .editorwidget import EditorWidget
 
 
 def tr(text):
@@ -34,7 +50,7 @@ class PluginsModel(QAbstractItemModel):
     def _update_data(self):
         self._plugin_data = []
         for i, (name, (enabled, ptype)) in enumerate(
-                self.plugin_manager._enabled.iteritems()):
+                self.plugin_manager._enabled.items()):
             path = sys.modules[ptype.__module__].__file__
             path = os.path.normpath(path)
             if path.endswith('.pyc') or path.endswith('.pyo'):
@@ -140,7 +156,7 @@ class PluginManagerWidget(ExToolWindow):
         table.setVerticalHeader(h)
         self.table = table
         width = 80
-        for i in xrange(3):
+        for i in range(3):
             width += table.columnWidth(i)
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel,

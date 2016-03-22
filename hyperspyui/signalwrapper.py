@@ -1,15 +1,31 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Fri Oct 24 18:27:15 2014
 
 @author: Vidar Tonaas Fauske
 """
 
-from util import fig2win
+from .util import fig2win
 from python_qt_binding import QtCore
 
-from modelwrapper import ModelWrapper
-from actionable import Actionable
+from .modelwrapper import ModelWrapper
+from .actionable import Actionable
 
 
 class SignalWrapper(Actionable):
@@ -97,8 +113,15 @@ class SignalWrapper(Actionable):
         """
         old_signal = self.signal
         self.signal = new_signal
+        idx = -1
+        for i, s in enumerate(self.mainwindow.hspy_signals):
+            if s is old_signal:
+                idx = i
+                break
         self.mainwindow.lut_signalwrapper[new_signal] = self
         del self.mainwindow.lut_signalwrapper[old_signal]
+        if idx >= 0:
+            self.mainwindow.hspy_signals[idx] = new_signal
 
     def update(self):
         if self.navigator_plot is not None:
@@ -124,8 +147,8 @@ class SignalWrapper(Actionable):
             # Did the window change?
             if old_nav is not self.navigator_plot:
                 # Process the plot
-                navi.axes[0].set_title("")  # remove title
-                navi.tight_layout()
+                title = navi.axes[0].set_title("")  # remove title
+                title.set_visible(False)
                 # Wire closing event
                 self.navigator_plot.closing.connect(self.nav_closing)
                 # Set a reference on window to self
@@ -136,6 +159,7 @@ class SignalWrapper(Actionable):
 
                 # Did we have a previous window?
                 if old_nav is not None:
+                    navi.tight_layout()
                     # Save geometry of old, and make sure it is closed
                     self._nav_geom = old_nav.saveGeometry()
                     old_nav.closing.disconnect(self.nav_closing)
@@ -150,12 +174,13 @@ class SignalWrapper(Actionable):
             sigp = self.signal._plot.signal_plot.figure
             self.signal_plot = fig2win(sigp, self.mainwindow.figures)
             if old_sig is not self.signal_plot:
-                sigp.axes[0].set_title("")
-                sigp.tight_layout()
+                title = sigp.axes[0].set_title("")
+                title.set_visible(False)
                 self.signal_plot.closing.connect(self.sig_closing)
                 self.signal_plot.setProperty('hyperspyUI.SignalWrapper', self)
                 self.add_figure(self.signal_plot)
                 if old_sig is not None:
+                    sigp.tight_layout()
                     self._sig_geom = old_sig.saveGeometry()
                     old_sig.closing.disconnect(self.sig_closing)
                     old_sig.close()
@@ -194,6 +219,8 @@ class SignalWrapper(Actionable):
 
     def make_model(self, *args, **kwargs):
         m = self.signal.create_model(*args, **kwargs)
+        self.mainwindow.record_code("signal = ui.get_selected_signal()")
+        self.mainwindow.record_code("model = signal.create_model()")
 #        modelname = self.signal.metadata.General.title
         modelname = "Model %d" % self._model_id
         self._model_id += 1

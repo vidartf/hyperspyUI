@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Mon Oct 27 21:17:42 2014
 
@@ -12,24 +28,75 @@ matplotlib.interactive(True)
 
 import os
 import warnings
+import sys
 
 from python_qt_binding import QtGui, QtCore
 from QtCore import *
 from QtGui import *
 
+from .widgets.consolewidget import ConsoleWidget
+import hyperspyui.mdi_mpl_backend
+from .pluginmanager import PluginManager
+from hyperspyui.settings import Settings
+from hyperspyui.widgets.settingsdialog import SettingsDialog
+
 
 def tr(text):
     return QCoreApplication.translate("MainWindow", text)
 
-from widgets.consolewidget import ConsoleWidget
-import hyperspyui.mdi_mpl_backend
-from pluginmanager import PluginManager
-from hyperspyui.settings import Settings
-from hyperspyui.widgets.settingsdialog import SettingsDialog
-from hyperspyui.smartcolorsvgiconengine import SmartColorSVGIconEngine
+
+def lowpriority():
+    """ Set the priority of the process to below-normal."""
+
+    if sys.platform == 'win32':
+        # Based on:
+        #   "Recipe 496767: Set Process Priority In Windows" on ActiveState
+        #   http://code.activestate.com/recipes/496767/
+        try:
+            import win32api
+            import win32process
+            import win32con
+        except ImportError as e:
+            warnings.warn("Could not set process priority: %s" % e)
+            return
+
+        pid = win32api.GetCurrentProcessId()
+        handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+        win32process.SetPriorityClass(
+            handle, win32process.BELOW_NORMAL_PRIORITY_CLASS)
+    else:
+        import os
+
+        os.nice(1)
 
 
-class MainWindowLayer1(QMainWindow):
+def normalpriority():
+    """ Set the priority of the process to below-normal."""
+
+    if sys.platform == 'win32':
+        # Based on:
+        #   "Recipe 496767: Set Process Priority In Windows" on ActiveState
+        #   http://code.activestate.com/recipes/496767/
+        try:
+            import win32api
+            import win32process
+            import win32con
+        except ImportError as e:
+            warnings.warn("Could not set process priority: %s" % e)
+            return
+
+        pid = win32api.GetCurrentProcessId()
+        handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, True, pid)
+        win32process.SetPriorityClass(
+            handle, win32process.NORMAL_PRIORITY_CLASS)
+    else:
+        import os
+
+        # Reset nice to 0
+        os.nice(-os.nice(0))
+
+
+class MainWindowBase(QMainWindow):
 
     """
     Base layer in application stack. Should handle the connection to our custom
@@ -40,18 +107,21 @@ class MainWindowLayer1(QMainWindow):
     """
 
     def __init__(self, parent=None):
-        super(MainWindowLayer1, self).__init__(parent)
+        super(MainWindowBase, self).__init__(parent)
 
         # Setup settings:
         self.settings = Settings(self, 'General')
         # Default setting values:
-        self.settings.set_default('toolbar_button_size', 32)
+        self.settings.set_default('toolbar_button_size', 24)
         self.settings.set_default('default_widget_floating', False)
         self.settings.set_default('working_directory', "")
+        self.settings.set_default('low_process_priority', False)
         # Override any possible invalid stored values, which could prevent load
         if 'toolbar_button_size' not in self.settings or \
                 not isinstance(self.settings['toolbar_button_size'], int):
-            self.settings['toolbar_button_size'] = 32
+            self.settings['toolbar_button_size'] = 24
+        if self.low_process_priority:
+            lowpriority()
 
         # State varaibles
         self.should_capture_traits = None
@@ -94,7 +164,7 @@ class MainWindowLayer1(QMainWindow):
 
     @property
     def toolbar_button_size(self):
-        return int(self.settings['toolbar_button_size'])
+        return self.settings['toolbar_button_size', int]
 
     @toolbar_button_size.setter
     def toolbar_button_size(self, value):
@@ -111,6 +181,18 @@ class MainWindowLayer1(QMainWindow):
         self.settings['working_directory'] = value
 
     @property
+    def low_process_priority(self):
+        return self.settings['low_process_priority', bool]
+
+    @low_process_priority.setter
+    def low_process_priority(self, value):
+        self.settings['low_process_priority'] = value
+        if value:
+            lowpriority()
+        else:
+            normalpriority()
+
+    @property
     def plugins(self):
         return self.plugin_manager.plugins
 
@@ -123,7 +205,7 @@ class MainWindowLayer1(QMainWindow):
     def closeEvent(self, event):
         self.settings['_geometry'] = self.saveGeometry()
         self.settings['_windowState'] = self.saveState()
-        super(MainWindowLayer1, self).closeEvent(event)
+        return super(MainWindowBase, self).closeEvent(event)
 
     def reset_geometry(self):
         self.settings.restore_key_default('_geometry')
@@ -171,6 +253,15 @@ class MainWindowLayer1(QMainWindow):
         self.selectable_tools = QActionGroup(self)
         self.selectable_tools.setExclusive(True)
 
+        # Nested docking action
+        ac_nested = QAction(tr("Nested docking"), self)
+        ac_nested.setStatusTip(tr("Allow nested widget docking"))
+        ac_nested.setCheckable(True)
+        ac_nested.setChecked(self.isDockNestingEnabled())
+        self.connect(ac_nested, SIGNAL('triggered(bool)'),
+                     self.setDockNestingEnabled)
+        self.actions['nested_docking'] = ac_nested
+
         # Tile windows action
         ac_tile = QAction(tr("Tile"), self)
         ac_tile.setStatusTip(tr("Arranges all figures in a tile pattern"))
@@ -186,6 +277,13 @@ class MainWindowLayer1(QMainWindow):
                      self.main_frame.cascadeSubWindows)
         self.actions['cascade_windows'] = ac_cascade
 
+        # Close all figures action
+        ac_close_figs = QAction(tr("Close all"), self)
+        ac_close_figs.setStatusTip(tr("Closes all matplotlib figures"))
+        self.connect(ac_close_figs, SIGNAL('triggered()'),
+                     lambda: matplotlib.pyplot.close("all"))
+        self.actions['close_all_windows'] = ac_close_figs
+
         # Reset geometry action
         ac_reset_layout = QAction(tr("Reset layout"), self)
         ac_reset_layout.setStatusTip(tr("Resets layout of toolbars and "
@@ -199,11 +297,14 @@ class MainWindowLayer1(QMainWindow):
         # Window menu is filled in add_widget and add_figure
         self.windowmenu = mb.addMenu(tr("&Windows"))
         self.windowmenu.addAction(self._console_dock.toggleViewAction())
+        self.windowmenu.addAction(self.actions['nested_docking'])
         # Figure windows go below this separator. Other windows can be added
         # above it with insertAction(self.windowmenu_sep, QAction)
         self.windowmenu_sep = self.windowmenu.addSeparator()
         self.windowmenu.addAction(self.actions['tile_windows'])
         self.windowmenu.addAction(self.actions['cascade_windows'])
+        self.windowmenu.addSeparator()
+        self.windowmenu.addAction(self.actions['close_all_windows'])
         self.windowmenu_actions_sep = self.windowmenu.addSeparator()
 
         self.plugin_manager.create_menu()
@@ -245,13 +346,15 @@ class MainWindowLayer1(QMainWindow):
         """
         # Due to the way the property is defined, this updates the UI:
         self.toolbar_button_size = self.toolbar_button_size
+        self.low_process_priority = self.low_process_priority
 
     def select_tool(self, tool):
         if self.active_tool is not None:
             try:
                 self.active_tool.disconnect_windows(self.figures)
             except Exception as e:
-                warnings.warn("Exception disabling tool %s: %s" %(self.active_tool.name, e.message))
+                warnings.warn("Exception disabling tool %s: %s" % (
+                    self.active_tool.get_name(), e))
         self.active_tool = tool
         tool.connect_windows(self.figures)
 
@@ -296,84 +399,11 @@ class MainWindowLayer1(QMainWindow):
     def check_action_selections(self, mdi_figure=None):
         if mdi_figure is None:
             mdi_figure = self.main_frame.activeSubWindow()
-        for key, cb in self._action_selection_cbs.iteritems():
+        for key, cb in self._action_selection_cbs.items():
             cb(mdi_figure, self.actions[key])
 
     # --------- End figure management ---------
 
-    # --------- UI utility finctions ---------
-
-    def make_icon(self, icon):
-        if not isinstance(icon, QIcon):
-            if isinstance(icon, basestring) and not os.path.isfile(icon):
-                sugg = os.path.dirname(__file__) + '/images/' + icon
-                if os.path.isfile(sugg):
-                    icon = sugg
-            if isinstance(icon, basestring) and (
-                    icon.endswith('svg') or
-                    icon.endswith('svgz') or
-                    icon.endswith('svg.gz')):
-                ie = SmartColorSVGIconEngine()
-                path = icon
-                icon = QIcon(ie)
-                icon.addFile(path)
-            else:
-                icon = QIcon(icon)
-        else:
-            icon = QIcon(SmartColorSVGIconEngine(icon))
-        return icon
-
-    def get_figure_filepath_suggestion(self, figure, deault_ext=None):
-        canvas = figure.widget()
-        if deault_ext is None:
-            deault_ext = canvas.get_default_filetype()
-
-        f = canvas.get_default_filename()
-        if not f:
-            f = self.cur_dir
-
-        # Analyze suggested filename
-        base, tail = os.path.split(f)
-        fn, ext = os.path.splitext(tail)
-
-        # If no directory in filename, use self.cur_dir's dirname
-        if base is None or base == "":
-            base = os.path.dirname(self.cur_dir)
-        # If extension is not valid, use the defualt
-        if ext not in canvas.get_supported_filetypes():
-            ext = deault_ext
-
-        # Build suggestion and return
-        path_suggestion = os.path.sep.join((base, fn))
-        path_suggestion = os.path.extsep.join((path_suggestion, ext))
-        return path_suggestion
-
-    def save_figure(self, figure=None):
-        if figure is None:
-            figure = self.main_frame.activeSubWindow()
-            if figure is None:
-                return
-        path_suggestion = self.get_figure_filepath_suggestion(figure)
-        canvas = figure.widget()
-
-        # Build type selection string
-        def_type = os.path.extsep + canvas.get_default_filetype()
-        extensions = canvas.get_supported_filetypes_grouped()
-        type_choices = u"All types (*.*)"
-        for group, exts in extensions.iteritems():
-            fmt = group + \
-                ' (' + \
-                '; '.join([os.path.extsep + sube for sube in exts]) + ')'
-            type_choices = ';;'.join((type_choices, fmt))
-            if def_type[1:] in exts:
-                def_type = fmt
-
-        # Present filename prompt
-        filename = QFileDialog.getSaveFileName(self, tr("Save file"),
-                                               path_suggestion, type_choices,
-                                               def_type)[0]
-        if filename:
-            canvas.figure.savefig(filename)
 
     # --------- Console functions ---------
 
@@ -404,7 +434,14 @@ class MainWindowLayer1(QMainWindow):
         # and then drop route when it finishes, however this will not catch
         # interactive dialogs and such.
         c = self._get_console_config()
-        control = ConsoleWidget(config=c)
+        self.settings.set_default('console_completion_type', 'droplist')
+        valid_completions = ConsoleWidget.gui_completion.values
+        self.settings.set_enum_hint('console_completion_type',
+                                    valid_completions)
+        gui_completion = self.settings['console_completion_type']
+        if gui_completion not in valid_completions:
+            gui_completion = 'droplist'
+        control = ConsoleWidget(config=c, gui_completion=gui_completion)
         control.executing.connect(self.on_console_executing)
         control.executed.connect(self.on_console_executed)
 

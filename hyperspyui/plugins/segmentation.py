@@ -1,3 +1,21 @@
+# -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
+
 from hyperspyui.plugins.plugin import Plugin
 from hyperspy.signal import Signal
 import numpy as np
@@ -18,6 +36,7 @@ class Segmentation(Plugin):
         self.tool = MultiSelectionTool()
         self.tool.name = 'Segmentation tool'
         self.tool.icon = 'segmentation.svg'
+        self.tool.category = 'Image'
         self.tool.updated[Signal, list].connect(self._on_update)
         self.tool.accepted[Signal, list].connect(self.segment)
         self.tool.validator = self._tool_signal_validator
@@ -68,7 +87,7 @@ class Segmentation(Plugin):
             source, s_out = self.map[signal]
         else:
             found = False
-            for h, (s, s_out) in self.map.iteritems():
+            for h, (s, s_out) in self.map.items():
                 if signal in (s, s_out):
                     found = True
                     histogram = h
@@ -101,7 +120,7 @@ class Segmentation(Plugin):
         s_seg = Image(data)
         s_seg.plot(cmap=plt_cm.jet)
 
-        roi_str = '[' + ',\n'.join([str(r) for r in rois]) + ']'
+        roi_str = '[' + ',\n'.join(['hs.roi.' + str(r) for r in rois]) + ']'
         self.record_code('segment_rois = ' + roi_str)
         self.record_code('<p>.segment(None, segment_rois)')
 
@@ -114,7 +133,7 @@ class Segmentation(Plugin):
 
         gray = self._make_gray(data)
         s_out.data = regular_array2rgbx(gray)
-        for i in xrange(N):
+        for i in range(N):
             color = (255 * plt_cm.hsv([float(i) / max(N, 10)])).astype('uint8')
             color = regular_array2rgbx(color)
             r = rois[i]

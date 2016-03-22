@@ -1,11 +1,37 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Sun Nov 23 17:10:41 2014
 
 @author: Vidar Tonaas Fauske
 """
 
-import traitsui.qt4.ui_base as ui_base
+try:
+    import traitsui.qt4.ui_base as ui_base
+except RuntimeError:
+    import sys
+
+    if 'sphinx' in sys.modules:
+        class Dummy(object): pass
+        ui_base = Dummy()
+        ui_base._StickyDialog = Dummy
+    else:
+        raise
 orig_type = ui_base._StickyDialog
 
 
@@ -52,7 +78,7 @@ _destroyed_cbs = {}
 
 
 def _cb(cbs, *args, **kwargs):
-    for cb, userdata in cbs.iteritems():
+    for cb, userdata in cbs.items():
         if userdata is None:
             cb(*args, **kwargs)
         else:

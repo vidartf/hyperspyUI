@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Fri Oct 31 14:22:53 2014
 
@@ -14,31 +30,28 @@ from matplotlib import __version__ as mplversionstring
 
 mpl13 = mplversionstring.startswith('1.3')
 mpl14 = mplversionstring.startswith('1.4')
+mpl15 = mplversionstring.startswith('1.5')
 
 if mpl13:
     from matplotlib.backends.qt4_compat import QtCore, QtGui, _getSaveFileName, __version__
-elif mpl14:
+else: # mpl14 or mpl15, or higher
     from matplotlib.backends.qt_compat import QtCore, QtGui, _getSaveFileName, __version__
-else:
-    from python_qt_binding import QtGui, QtCore
 
 if mpl13:
     from matplotlib.backends.backend_qt4 import (QtCore, QtGui, FigureManagerQT, FigureCanvasQT,
                                                  show, draw_if_interactive, backend_version,
                                                  NavigationToolbar2QT)
-elif mpl14:
+else: # mpl14 or mpl15, or higher
     from matplotlib.backends.backend_qt5 import (SPECIAL_KEYS, SUPER, ALT, CTRL,
                                                  SHIFT, MODIFIER_KEYS, fn_name, cursord,
                                                  draw_if_interactive, _create_qApp, show, TimerQT,
                                                  FigureManagerQT,
                                                  SubplotToolQt, error_msg_qt, exception_handler)
-else:
-    pass
 
 # FigureCanvas definition
 if mpl13:
     FigureCanvas = matplotlib.backends.backend_qt4agg.FigureCanvasQTAgg
-elif mpl14:
+else:  # mpl14 or mpl15, or higher
     FigureCanvas = matplotlib.backends.backend_qt4agg.FigureCanvas
 
 # =================
@@ -75,7 +88,7 @@ def _on_new_figure(figure):
     'figure' parameter is of the type FigureWindow defined below
     """
     global _new_fig_cbs
-    for callback, userdata in _new_fig_cbs.iteritems():
+    for callback, userdata in _new_fig_cbs.items():
         try:
             callback(figure, userdata)
         except TypeError:
@@ -108,7 +121,7 @@ def _on_destroy(figure):
     'figure' parameter is of the type FigureWindow defined below
     """
     global _destroy_cbs
-    for callback, userdata in _destroy_cbs.iteritems():
+    for callback, userdata in _destroy_cbs.items():
         try:
             callback(figure, userdata)
         except TypeError:
@@ -266,7 +279,7 @@ class FigureManagerMdi(FigureManagerBase):
     @QtCore.Slot()
     def _show_message(self, s):
         # Fixes a PySide segfault.
-        print "Trying to show: " + s
+        print("Trying to show: " + s)
 #        self.window.statusBar().showMessage(s)
 
     def full_screen_toggle(self):
@@ -307,7 +320,7 @@ class FigureManagerMdi(FigureManagerBase):
             self.toolbar.destroy()
         self.window.close()
         self.window = None
-        self.canvas.figure = None
+        # self.canvas.figure = None  # Causes exceptions in delayed drawing
         self.canvas = None
         self.toolbar = None
 

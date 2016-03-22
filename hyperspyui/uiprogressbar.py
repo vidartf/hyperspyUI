@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Wed Nov 26 19:11:19 2014
 
@@ -119,7 +135,10 @@ class UIProgressBar(hyperspy.external.progressbar.ProgressBar):
             if isinstance(w, hyperspy.external.progressbar.ETA):
                 has_eta = True
                 eta = w.update(self)
-                txt = self.widgets[0] + " " + eta
+                if isinstance(self.widgets[0], str):
+                    txt = self.widgets[0] + " " + eta
+                else:
+                    txt = str(eta)
                 signaler.emit(SIGNAL('progress(int, int, QString)'),
                               self.id, value, txt)
         if not has_eta:

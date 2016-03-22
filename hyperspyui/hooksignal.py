@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Sat Feb 28 17:52:42 2015
 
@@ -36,7 +52,7 @@ _plotted_cbs = {}
 
 
 def _cb(cbs, *args, **kwargs):
-    for cb, userdata in cbs.iteritems():
+    for cb, userdata in cbs.items():
         if userdata is None:
             cb(*args, **kwargs)
         else:

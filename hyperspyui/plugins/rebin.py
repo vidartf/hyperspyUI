@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Wed Jan 07 23:37:51 2015
 
@@ -23,7 +39,7 @@ class RebinPlugin(Plugin):
 
     def create_actions(self):
         self.add_action('rebin', tr("Rebin"), self.rebin_dialog,
-                        #                        icon='rebin.svg',
+                        icon='rebin.svg',
                         selection_callback=self.ui.select_signal,
                         tip=tr("Rebin the signal"))
 
@@ -36,7 +52,7 @@ class RebinPlugin(Plugin):
         s = signal.signal
         shape = []
         mods = [tuple()] * len(s.axes_manager.shape)
-        for i in xrange(len(s.axes_manager.shape)):
+        for i in range(len(s.axes_manager.shape)):
             ax = s.axes_manager[i]
             factor = factors[i]
             if factor > ax.size:
@@ -45,7 +61,7 @@ class RebinPlugin(Plugin):
                 mods[ax.index_in_array] = slice(None)
             else:
                 mods[ax.index_in_array] = slice(None, - (ax.size % factor))
-            shape.append(ax.size / factor)
+            shape.append(ax.size // factor)
         # Crop to multiple of factors
         s.data = s.data[tuple(mods)]
 

@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Wed Jan 21 14:49:08 2015
 
@@ -14,7 +30,7 @@ from hyperspyui.plugins.plugin import Plugin
 from hyperspyui.widgets.extendedqwidgets import ExToolWindow
 from scipy.ndimage import rotate
 import numpy as np
-from hyperspyui.util import win2sig
+from hyperspyui.util import win2sig, dummy_context_manager
 from hyperspyui.signalwrapper import SignalWrapper
 
 
@@ -26,16 +42,17 @@ class ImageRotation_Plugin(Plugin):
     name = 'Image Rotation'
 
     def create_actions(self):
+        self.settings.set_enum_hint('new_or_replace', ['new', 'replace'])
         self.add_action('rotate', "Rotate", self.show_rotate_dialog,
                         icon='rotate.svg',
                         tip="Rotate an image",
                         selection_callback=self.selection_rules)
 
     def create_menu(self):
-        self.add_menuitem('Signal', self.ui.actions['rotate'])
+        self.add_menuitem('Image', self.ui.actions['rotate'])
 
     def create_toolbars(self):
-        self.add_toolbar_button("Signal", self.ui.actions['rotate'])
+        self.add_toolbar_button("Image", self.ui.actions['rotate'])
 
     def selection_rules(self, win, action):
         """
@@ -59,7 +76,7 @@ class ImageRotation_Plugin(Plugin):
                       record=True, *args, **kwargs):
         if signal is None:
             signal, axes, _ = self.ui.get_selected_plot()
-            if isinstance(axes, basestring):
+            if isinstance(axes, str):
                 axm = signal.signal.axes_manager
                 if axes.startswith("nav"):
                     axes = (axm._axes.index(axm.navigation_axes[0]),
@@ -149,19 +166,26 @@ class ImageRotation_Plugin(Plugin):
             if sig.data.shape != old_shape:
                 old = out.auto_replot
                 out.auto_replot = False
-                out.get_dimensions_from_data()
-                out.auto_replot = old
-                diff = np.array(out.data.shape) - old_shape
-                for i, ax in enumerate(out.axes_manager._axes):
-                    dx = diff[i] * 0.5 * ax.scale
-                    ax.offset -= dx
+                if hasattr(out.axes_manager, 'events') and hasattr(
+                        out.axes_manager.events, 'any_axis_changed'):
+                    cm = out.axes_manager.events.any_axis_changed.suppress
+                else:
+                    cm = dummy_context_manager
+                with cm():
+                    out.get_dimensions_from_data()
+                    out.auto_replot = old
+                    diff = np.array(out.data.shape) - old_shape
+                    for i, ax in enumerate(out.axes_manager._axes):
+                        dx = diff[i] * 0.5 * ax.scale
+                        ax.offset -= dx
                 # TODO: TAG: Functionality check
-                if hasattr(out, 'events') and hasattr(
-                        out.events, 'axes_changed'):
-                    out.events.axes_changed.trigger()
+                if hasattr(out.axes_manager, 'events') and hasattr(
+                        out.axes_manager.events, 'any_axis_changed'):
+                    out.axes_manager.events.any_axis_changed.trigger(
+                        out.axes_manager)
             # TODO: TAG: Functionality check
-            if hasattr(out, 'events') and hasattr(out.events, 'axes_changed'):
-                out.events.data_changed.trigger()
+            if hasattr(out, 'events') and hasattr(out.events, 'data_changed'):
+                out.events.data_changed.trigger(out)
 
     def on_dialog_accept(self):
         self.settings['angle'] = self.dialog.num_angle.value()
@@ -173,6 +197,8 @@ class ImageRotation_Plugin(Plugin):
         self.settings['preview'] = self.dialog.gbo_preview.isChecked()
         self.settings['grid'] = self.dialog.chk_grid.isChecked()
         self.settings['grid_spacing'] = self.dialog.num_grid.value()
+        self.dialog.deleteLater()
+        self.dialog = None
 
     def show_rotate_dialog(self):
         signal, space, _ = self.ui.get_selected_plot()
@@ -180,7 +206,7 @@ class ImageRotation_Plugin(Plugin):
             return
         self.dialog = ImageRotationDialog(signal, space, self.ui, self)
         if 'angle' in self.settings:
-            self.dialog.num_angle.setValue(float(self.settings['angle']))
+            self.dialog.num_angle.setValue(self.settings['angle', float])
         if 'new_or_replace' in self.settings:
             v = self.settings['new_or_replace']
             if v == 'new':
@@ -188,16 +214,13 @@ class ImageRotation_Plugin(Plugin):
             elif v == 'replace':
                 self.dialog.opt_replace.setChecked(True)
         if 'reshape' in self.settings:
-            self.dialog.chk_reshape.setChecked(
-                "true" == self.settings['reshape'].lower())
+            self.dialog.chk_reshape.setChecked(self.settings['reshape', bool])
         if 'preview' in self.settings:
-            self.dialog.gbo_preview.setChecked(
-                "true" == self.settings['preview'].lower())
+            self.dialog.gbo_preview.setChecked(self.settings['preview', bool])
         if 'grid' in self.settings:
-            self.dialog.chk_grid.setChecked(
-                "true" == self.settings['grid'].lower())
+            self.dialog.chk_grid.setChecked(self.settings['grid', bool])
         if 'grid_spacing' in self.settings:
-            self.dialog.num_grid.setValue(int(self.settings['grid_spacing']))
+            self.dialog.num_grid.setValue(self.settings['grid_spacing', int])
         self.dialog.accepted.connect(self.on_dialog_accept)
         self.dialog.show()
 
@@ -214,7 +237,7 @@ class ImageRotationDialog(ExToolWindow):
         self.plugin = plugin
         self.new_out = None
         self._connected_updates = False
-        if isinstance(axes, basestring):
+        if isinstance(axes, str):
             axm = signal.signal.axes_manager
             if axes.startswith("nav"):
                 axes = (axm._axes.index(axm.navigation_axes[0]),
@@ -292,17 +315,17 @@ class ImageRotationDialog(ExToolWindow):
         if self._connected_updates != disconnect:
             return  # Nothing to do, prevent double connections
         if self._axes_in_nav():
-            f = signal._plot.navigator_plot._update
+            f = signal._plot.navigator_plot.update
         else:
-            f = signal._plot.signal_plot._update
+            f = signal._plot.signal_plot.update
 
         # TODO: TAG: Functionality check
         if hasattr(signal, 'events') and hasattr(
-                signal.events, 'axes_changed'):
+                signal.events, 'data_changed'):
             if disconnect:
                 signal.events.data_changed.disconnect(f)
             else:
-                signal.events.data_changed.connect(f)
+                signal.events.data_changed.connect(f, [])
         self._connected_updates = not disconnect
 
     def update(self):

@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Fri Apr 17 00:23:43 2015
 
@@ -21,6 +37,7 @@ class FittingPlugin(Plugin):
 
     def create_tools(self):
         self.reg_tool = RegressionTool()
+        self.reg_tool.category = 'Spectrum'
         self.reg_tool.accepted[BaseInteractiveROI].connect(self.regression)
         self.add_tool(self.reg_tool, self.ui.select_signal)
 
@@ -70,8 +87,8 @@ class RegressionTool(SelectionTool):
     """
     """
 
-    def __init__(self, windows=None):
-        super(RegressionTool, self).__init__(windows)
+    def __init__(self, *args, **kwargs):
+        super(RegressionTool, self).__init__(*args, **kwargs)
         self.valid_dimensions = [1]
 
     def on_keyup(self, event):

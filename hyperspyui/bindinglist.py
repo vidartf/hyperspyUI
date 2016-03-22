@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Mon Oct 27 23:17:25 2014
 
@@ -59,13 +75,13 @@ class BindingList(list):
 
     def append(self, object):
         super(BindingList, self).append(object)
-        for t in self.targets.values():
+        for t in list(self.targets.values()):
             if t['ap'] is not None:
                 t['ap'](object)
 
     def insert(self, index, object):
         super(BindingList, self).insert(index, object)
-        for t in self.targets.values():
+        for t in list(self.targets.values()):
             if t['in'] is not None:
                 t['in'](index, object)
             elif t['ap'] is not None:
@@ -73,7 +89,7 @@ class BindingList(list):
 
     def extend(self, iterable):
         super(BindingList, self).extend(iterable)
-        for t in self.targets.values():
+        for t in list(self.targets.values()):
             if t['ex'] is not None:
                 t['ex'](iterable)
             if t['ap'] is not None:
@@ -84,7 +100,7 @@ class BindingList(list):
         if value not in self:
             return
 
-        for t in self.targets.values():
+        for t in list(self.targets.values()):
             if t['re'] is not None:
                 t['re'](value)
         super(BindingList, self).remove(value)
@@ -92,7 +108,7 @@ class BindingList(list):
     def pop(self, index=-1):
         if index < 0:
             index = len(self) + index
-        for t in self.targets.values():
+        for t in list(self.targets.values()):
             if t['po'] is not None:
                 t['po'](index)
             elif t['re'] is not None:

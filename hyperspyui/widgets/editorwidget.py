@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Sat Feb 21 17:55:01 2015
 
@@ -15,11 +31,11 @@ from pyqode.core import api
 from pyqode.core import modes
 from pyqode.core import panels
 from pyqode.core.widgets import TabWidget
-import _editor_server as server
+from . import _editor_server as server
 from pyqode.python import modes as pymodes
 from pyqode.python.backend.workers import run_pyflakes, calltips
 
-from extendedqwidgets import ExToolWindow
+from .extendedqwidgets import ExToolWindow
 import hyperspyui.plugincreator as pc
 
 
@@ -290,6 +306,23 @@ class EditorWidget(ExToolWindow):
         self._suppress_append = True
         self.ui.console.ex(code)
         self._suppress_append = old
+
+    def sizeHint(self):
+        # Default size to fit right margin
+        def_sz = super(EditorWidget, self).sizeHint()
+        if hasattr(self, 'editor'):
+            font = QFont(self.editor.font_name, self.editor.font_size +
+                         self.editor.zoom_level)
+            metrics = QFontMetricsF(font)
+            pos = 80
+            cm = self.layout().contentsMargins()
+            # TODO: Currently uses manual, magic number. Do properly!
+            offset = self.editor.contentOffset().x() + \
+                2 * self.editor.document().documentMargin() + \
+                cm.left() + cm.right() + 60
+            x80 = round(metrics.width(' ') * pos) + offset
+            def_sz.setWidth(x80)
+        return def_sz
 
     def create_controls(self, path):
         editor = api.CodeEdit()

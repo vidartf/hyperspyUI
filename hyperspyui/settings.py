@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Sat Dec 27 14:21:00 2014
 
@@ -9,7 +25,7 @@ from python_qt_binding import QtGui, QtCore
 from QtCore import *
 from QtGui import *
 
-from widgets.extendedqwidgets import ExRememberPrompt
+from hyperspyui.widgets.extendedqwidgets import ExRememberPrompt
 
 
 class Settings(object):
@@ -34,10 +50,15 @@ class Settings(object):
         if key not in self:
             groupings.insert(0, 'defaults')
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
-        ret = settings.value(key, t)
+        ret = settings.value(key)
+        if t and isinstance(t, type):
+            if t is bool:
+                ret = ("true" == ret.lower())
+            else:
+                ret = t(ret)
         for g in groupings:
             settings.endGroup()
         return ret
@@ -45,7 +66,7 @@ class Settings(object):
     def __setitem__(self, key, value):
         groupings = self._get_groups(key)
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         settings.setValue(key, value)
@@ -55,7 +76,7 @@ class Settings(object):
     def __contains__(self, key):
         groupings = self._get_groups(key)
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         r = settings.contains(key)
@@ -64,7 +85,7 @@ class Settings(object):
         return r
 
     def __iter__(self):
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         settings.beginGroup(self.group)
         keys = settings.allKeys()
         for k in keys:
@@ -73,7 +94,8 @@ class Settings(object):
     @staticmethod
     def clear_defaults():
         """
-        Clear all settings in defaults group.
+        Clear all settings in defaults group. Should only be run once during
+        application start, as it will undo any defaults that have been set.
         """
         settings = QSettings()
         settings.beginGroup('defaults')
@@ -81,7 +103,7 @@ class Settings(object):
         settings.endGroup()
 
     @staticmethod
-    def restore_defaults():
+    def restore_from_defaults():
         """
         Clears all settings (except "defaults" group) and restores all settings
         from the defaults group.
@@ -104,7 +126,7 @@ class Settings(object):
         groupings = self._get_groups(key)
         groupings.insert(0, 'defaults')
         inner_key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         default_value = settings.value(inner_key)
@@ -114,22 +136,57 @@ class Settings(object):
 
     def set_default(self, key, value):
         """
-        To set default value, write into defaults group.
+        Sets default value by writing into defaults group.
         """
         # If not in normal settings, set it:
         if key not in self:
             self[key] = value
 
-        # Either way, write to defaults
+        # Either way, write to defaults group
         groupings = self._get_groups(key)
         groupings.insert(0, 'defaults')
         key = groupings.pop()
-        settings = QSettings(self.parent)
+        settings = QSettings(parent=self.parent)
         for g in groupings:
             settings.beginGroup(g)
         settings.setValue(key, value)
         for g in groupings:
             settings.endGroup()
+
+    def set_enum_hint(self, key, options):
+        """
+        Indicate possible values for a setting.
+
+        The `options` are not strictly enforced, but can be used to indicate
+        valid values to the user. A typical usecase is to allow the use of a
+        combobox in a dialog to pick a value.
+        """
+        groupings = self._get_groups(key)
+        groupings.insert(0, 'defaults')
+        key = groupings.pop()
+        key = '_' + key + '_options'    # Change key to avoid conflicts
+        settings = QSettings(parent=self.parent)
+        for g in groupings:
+            settings.beginGroup(g)
+        settings.setValue(key, options)
+        for g in groupings:
+            settings.endGroup()
+
+    def get_enum_hint(self, key):
+        """
+        Returns the enum hint if set, otherwise None.
+        """
+        groupings = self._get_groups(key)
+        groupings.insert(0, 'defaults')
+        key = groupings.pop()
+        key = '_' + key + '_options'    # Change key to avoid conflicts
+        settings = QSettings(parent=self.parent)
+        for g in groupings:
+            settings.beginGroup(g)
+        value = settings.value(key)
+        for g in groupings:
+            settings.endGroup()
+        return value
 
     def get_or_prompt(self, key, options, title="Prompt", descr=""):
         """
@@ -158,7 +215,7 @@ class Settings(object):
             pass  # TODO: Make list selection
         mb.addButton(QMessageBox.Cancel)
 
-        # Show the dialog
+        # Show the dialog modal/blocking
         mb.exec_()
         btn = mb.clickedButton()
         if btn not in buttons:
@@ -177,7 +234,7 @@ class Settings(object):
         if group is not None:
             settings.beginGroup(group)
 
-        for k, v in d.iteritems():
+        for k, v in d.items():
             settings.setValue(k, v)
 
         if group is not None:
@@ -189,7 +246,7 @@ class Settings(object):
         if group is not None:
             settings.beginGroup(group)
 
-        for k, v in d.iteritems():
+        for k, v in d.items():
             if isinstance(v, tuple):
                 settings.value(k, v)
 

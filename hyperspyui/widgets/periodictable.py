@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Fri Nov 21 19:31:50 2014
 
@@ -11,7 +27,7 @@ from QtGui import *
 
 from functools import partial
 from hyperspyui._elements import elements
-from extendedqwidgets import ExClickLabel
+from .extendedqwidgets import ExClickLabel
 
 
 def tr(text):
@@ -59,7 +75,7 @@ class PeriodicTableWidget(QWidget):
         self.set_element(element, not self.toggled[element])
 
     def set_elements(self, elements):
-        for e in self.elements.iterkeys():
+        for e in self.elements.keys():
             self.set_element(e, e in elements)
 
     def set_element(self, element, value):

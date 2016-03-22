@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Sun Dec 07 01:48:00 2014
 
@@ -8,7 +24,7 @@ Created on Sun Dec 07 01:48:00 2014
 import collections
 from python_qt_binding import QtCore
 
-from tool import Tool
+from .tool import Tool
 
 
 class FigureTool(Tool):
@@ -16,9 +32,9 @@ class FigureTool(Tool):
     def __init__(self, windows=None):
         super(FigureTool, self).__init__()
         self.cids = {}
+        self.cursor = self.make_cursor()
         if self.single_action() is not None:
             self.connect_windows(windows)
-        self.cursor = self.make_cursor()
 
     def make_cursor(self):
         """
@@ -98,8 +114,8 @@ class FigureTool(Tool):
         windows = self._iter_windows(windows)
         for w in windows:
             canvas = w.widget()
-            for cid_iter in self.cids.itervalues():
-                for canv, cid in cid_iter.iteritems():
+            for cid_iter in self.cids.values():
+                for canv, cid in cid_iter.items():
                     if canv == canvas:
                         try:
                             canvas.mpl_disconnect(cid)

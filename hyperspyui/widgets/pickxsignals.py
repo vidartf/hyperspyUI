@@ -1,3 +1,20 @@
+# -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 
 from python_qt_binding import QtGui, QtCore
 from QtCore import *
@@ -18,12 +35,12 @@ class PickXSignalsWidget(QWidget):
 
         if titles is None:
             titles = list(("",) * x)
-        elif isinstance(titles, basestring):
+        elif isinstance(titles, str):
             titles = list((titles,) * x)
         elif len(titles) < x:
             titles.extend(list(("",) * (x-len(titles))))
 
-        for i in xrange(x):
+        for i in range(x):
             picker = SignalList(signal_wrappers, self, False)
             grid.addWidget(QLabel(titles[i]), 2*(i // wrap_col),
                            i % wrap_col)
@@ -33,12 +50,12 @@ class PickXSignalsWidget(QWidget):
 
     def get_selected(self):
         signals = []
-        for i in xrange(self._x):
+        for i in range(self._x):
             signals.append(self.pickers[i].get_selected())
         if self._x == 1:
             return signals[0]
         return signals
 
     def unbind(self):
-        for i in xrange(self._x):
+        for i in range(self._x):
             self.pickers[i].unbind(self._sws)

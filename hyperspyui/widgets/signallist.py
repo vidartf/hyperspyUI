@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Mon Oct 27 23:09:55 2014
 
@@ -18,12 +34,12 @@ class SignalList(QListWidget):
     def __init__(self, items=None, parent=None, multiselect=True):
         super(SignalList, self).__init__(parent)
         self.multiselect = multiselect
+        self._bound_blists = []
 
         if items is not None:
             self.addItems(items)
             if isinstance(items, BindingList):
                 self.bind(items)
-        self._bound_blists = []
         self.destroyed.connect(self._on_destroy)
 
     @property
@@ -76,7 +92,10 @@ class SignalList(QListWidget):
         if self.multiselect:
             return sigs
         else:
-            return sigs[0]
+            if len(sigs) > 0:
+                return sigs[0]
+            else:
+                return None
 
     def __getitem__(self, key):
         if isinstance(key, QListWidgetItem):

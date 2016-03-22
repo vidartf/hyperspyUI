@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Tue Nov 04 16:32:55 2014
 
@@ -386,7 +402,7 @@ class DataViewWidget(QWidget):
         the selected signal.
         """
         sf = win2sig(mdi_figure, self.main_window.signals)
-        for i in xrange(self.tree.topLevelItemCount()):
+        for i in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(i)
             s = item.data(NameCol, Qt.UserRole)
             # In case topLevelItems are not all SignalWrappers in future

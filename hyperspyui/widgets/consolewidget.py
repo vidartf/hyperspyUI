@@ -1,16 +1,37 @@
 # -*- coding: utf-8 -*-
+# Copyright 2014-2016 The HyperSpyUI developers
+#
+# This file is part of HyperSpyUI.
+#
+# HyperSpyUI is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# HyperSpyUI is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with HyperSpyUI.  If not, see <http://www.gnu.org/licenses/>.
 """
 Created on Tue Nov 04 16:04:17 2014
 
 @author: Vidar Tonaas Fauske
 """
 
-from IPython.qt.console.rich_ipython_widget import RichIPythonWidget
-from IPython.qt.inprocess import QtInProcessKernelManager
+try:
+    from qtconsole.rich_jupyter_widget import RichJupyterWidget
+    from qtconsole.inprocess import QtInProcessKernelManager
+except ImportError:
+    from IPython.qt.console.rich_ipython_widget import RichIPythonWidget as \
+        RichJupyterWidget
+    from IPython.qt.inprocess import QtInProcessKernelManager
 from IPython.lib import guisupport
 
 
-class ConsoleWidget(RichIPythonWidget):
+class ConsoleWidget(RichJupyterWidget):
 
     def __init__(self, *args, **kwargs):
         super(ConsoleWidget, self).__init__(*args, **kwargs)
