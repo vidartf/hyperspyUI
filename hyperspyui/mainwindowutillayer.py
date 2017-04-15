@@ -266,7 +266,8 @@ class MainWindowUtils(MainWindowBase):
         self.windowmenu.insertAction(self.windowmenu_sep, d.toggleViewAction())
         return d
 
-    def make_icon(self, icon):
+    @staticmethod
+    def make_icon(icon):
         """
         Create an icon that coheres to the internal standard for icons.
 
@@ -298,7 +299,7 @@ class MainWindowUtils(MainWindowBase):
             else:
                 icon = QIcon(icon)
         else:
-            icon = QIcon(SmartColorSVGIconEngine(icon))
+            icon = QIcon(SmartColorSVGIconEngine(other=icon))
         return icon
 
     def prompt_files(self, extension_filter=None, path=None, exists=True,

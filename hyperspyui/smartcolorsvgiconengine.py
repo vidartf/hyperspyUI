@@ -35,7 +35,7 @@ class SmartColorSVGIconEngine(QIconEngineV2):
     This class is basically a port to Python from the code for Qt's
     QSvgIconEnginePlugin. On top of this has been added the ability to exchange
     colors in the icons. It's also possible in the future to do more advanced
-    XML pro-processing. Note: Some of the more esoteric uses of QIcon might
+    XML pre-processing. Note: Some of the more esoteric uses of QIcon might
     not be fully tested for yet.
     """
 
